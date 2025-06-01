@@ -97,7 +97,6 @@ SereniTeam is a **real-time wellness dashboard** for remote teams, built with Bl
    ```
 
 8. **Access the Application**
-   ```bash
+   
    - Navigate to `https://localhost:5001` or `http://localhost:5000`
    - API Documentation: `https://localhost:5001/swagger`
-   ```
