@@ -1,0 +1,192 @@
+﻿@page "/checkin"
+@using SereniTeam.Shared.DTOs
+@using SereniTeam.Client.Services
+@inject ITeamApiService TeamService
+@inject ICheckInApiService CheckInService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Submit Check-in - SereniTeam</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">🌟 How are you feeling today?</h3>
+                    <small class="text-muted">Your responses are completely anonymous</small>
+                </div>
+                <div class="card-body">
+                    @if (teams == null)
+                    {
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!teams.Any())
+                    {
+                        <div class="alert alert-warning">
+                            <h5>No teams available</h5>
+                            <p>Please contact your administrator to set up teams.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <EditForm Model="checkInModel" OnValidSubmit="SubmitCheckIn">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Select Your Team</label>
+                                <select class="form-select" @bind="checkInModel.TeamId" required>
+                                    <option value="0">Choose your team...</option>
+                                    @foreach (var team in teams)
+                                    {
+                                        <option value="@team.Id">@team.Name</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => checkInModel.TeamId" />
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Mood Rating (1 = Very Low, 10 = Excellent)</label>
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <input type="range" class="form-range" min="1" max="10" 
+                                               @bind="checkInModel.MoodRating" @bind:event="oninput" />
+                                    </div>
+                                    <div class="col-auto">
+                                        <span class="badge bg-primary fs-5">@checkInModel.MoodRating</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>😔 Very Low</span>
+                                    <span>😐 Neutral</span>
+                                    <span>😊 Excellent</span>
+                                </div>
+                                <ValidationMessage For="() => checkInModel.MoodRating" />
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Stress Level (1 = Very Low, 10 = Very High)</label>
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <input type="range" class="form-range" min="1" max="10" 
+                                               @bind="checkInModel.StressLevel" @bind:event="oninput" />
+                                    </div>
+                                    <div class="col-auto">
+                                        <span class="badge bg-warning fs-5">@checkInModel.StressLevel</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>😌 Very Calm</span>
+                                    <span>😐 Moderate</span>
+                                    <span>😰 Very Stressed</span>
+                                </div>
+                                <ValidationMessage For="() => checkInModel.StressLevel" />
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Additional Notes (Optional)</label>
+                                <textarea class="form-control" @bind="checkInModel.Notes" 
+                                          placeholder="Any additional thoughts or comments..." 
+                                          rows="3" maxlength="500"></textarea>
+                                <div class="form-text">
+                                    @(checkInModel.Notes?.Length ?? 0)/500 characters
+                                </div>
+                                <ValidationMessage For="() => checkInModel.Notes" />
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" disabled="@isSubmitting">
+                                    @if (isSubmitting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        <span>Submitting...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Submit Check-in</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">@(isSuccess ? "Success" : "Error")</strong>
+                <button type="button" class="btn-close" @onclick="ClearMessage"></button>
+            </div>
+            <div class="toast-body">
+                @message
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TeamDto> teams = new();
+    private CheckInSubmissionDto checkInModel = new() { MoodRating = 5, StressLevel = 5 };
+    private bool isSubmitting = false;
+    private string message = string.Empty;
+    private bool isSuccess = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        teams = await TeamService.GetAllTeamsAsync();
+    }
+
+    private async Task SubmitCheckIn()
+    {
+        if (checkInModel.TeamId == 0)
+        {
+            ShowMessage("Please select your team.", false);
+            return;
+        }
+
+        isSubmitting = true;
+        var success = await CheckInService.SubmitCheckInAsync(checkInModel);
+        
+        if (success)
+        {
+            ShowMessage("Thank you! Your check-in has been submitted anonymously.", true);
+            ResetForm();
+        }
+        else
+        {
+            ShowMessage("Failed to submit check-in. Please try again.", false);
+        }
+        
+        isSubmitting = false;
+    }
+
+    private void ResetForm()
+    {
+        checkInModel = new CheckInSubmissionDto { MoodRating = 5, StressLevel = 5 };
+    }
+
+    private void ShowMessage(string msg, bool success)
+    {
+        message = msg;
+        isSuccess = success;
+        StateHasChanged();
+        
+        // Auto-hide message after 5 seconds
+        _ = Task.Delay(5000).ContinueWith(_ => ClearMessage());
+    }
+
+    private void ClearMessage()
+    {
+        message = string.Empty;
+        StateHasChanged();
+    }
+}

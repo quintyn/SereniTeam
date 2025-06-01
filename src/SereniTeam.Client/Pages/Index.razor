@@ -1,0 +1,61 @@
+﻿@page "/"
+
+<PageTitle>SereniTeam - Team Wellness Dashboard</PageTitle>
+
+<div class="hero-section">
+    <h1 class="display-4">Welcome to SereniTeam</h1>
+    <p class="lead">Monitor and improve your team's wellness with anonymous check-ins and real-time insights.</p>
+    
+    <div class="row mt-5">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-1 text-primary">📝</div>
+                    <h5 class="card-title">Submit Check-in</h5>
+                    <p class="card-text">Share your current mood and stress levels anonymously.</p>
+                    <a href="/checkin" class="btn btn-primary">Get Started</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-1 text-success">📊</div>
+                    <h5 class="card-title">View Dashboard</h5>
+                    <p class="card-text">See real-time team wellness trends and analytics.</p>
+                    <a href="/dashboard" class="btn btn-success">View Dashboard</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-1 text-info">👥</div>
+                    <h5 class="card-title">Manage Teams</h5>
+                    <p class="card-text">Create and manage teams within your organization.</p>
+                    <a href="/teams" class="btn btn-info">Manage Teams</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hero-section {
+        text-align: center;
+        padding: 4rem 0;
+    }
+    
+    .card {
+        transition: transform 0.2s;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+</style>

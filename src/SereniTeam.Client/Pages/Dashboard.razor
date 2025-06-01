@@ -1,0 +1,78 @@
+﻿@page "/dashboard"
+@using SereniTeam.Shared.DTOs
+@using SereniTeam.Client.Services
+@inject ITeamApiService TeamService
+
+<PageTitle>Dashboard - SereniTeam</PageTitle>
+
+<div class="container">
+    <h2>Team Wellness Dashboard</h2>
+    
+    @if (teams == null)
+    {
+        <p>Loading teams...</p>
+    }
+    else if (!teams.Any())
+    {
+        <p>No teams available.</p>
+    }
+    else
+    {
+        <div class="mb-3">
+            <select class="form-select" @bind="selectedTeamId" @bind:after="LoadTeamData">
+                <option value="0">Select a team...</option>
+                @foreach (var team in teams)
+                {
+                    <option value="@team.Id">@team.Name</option>
+                }
+            </select>
+        </div>
+
+        @if (teamSummary != null)
+        {
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5>Average Mood</h5>
+                            <h3>@teamSummary.AverageMood.ToString("F1")</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5>Average Stress</h5>
+                            <h3>@teamSummary.AverageStress.ToString("F1")</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5>Total Check-ins</h5>
+                            <h3>@teamSummary.TotalCheckIns</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<TeamDto> teams = new();
+    private TeamSummaryDto? teamSummary;
+    private int selectedTeamId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        teams = await TeamService.GetAllTeamsAsync();
+    }
+
+    private async Task LoadTeamData()
+    {
+        if (selectedTeamId == 0) return;
+        teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, 30);
+    }
+}
