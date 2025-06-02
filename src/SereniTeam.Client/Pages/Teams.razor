@@ -1,173 +1,353 @@
-﻿<!-- Pages/Teams.razor -->
-@page "/teams"
+﻿@page "/teams"
 @using SereniTeam.Shared.DTOs
 @using SereniTeam.Client.Services
 @inject ITeamApiService TeamService
+@inject NavigationManager Navigation
 
 <PageTitle>Teams - SereniTeam</PageTitle>
 
-<div class="container">
-    <div class="row mb-4">
-        <div class="col">
-            <h2>👥 Team Management</h2>
-            <p class="text-muted">Create and manage teams within your organization</p>
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-primary" @onclick="ShowCreateModal">
-                <span class="oi oi-plus"></span> Create New Team
-            </button>
-        </div>
-    </div>
-
-    <!-- Burnout Alerts -->
-    @if (burnoutAlerts.Any())
-    {
-        <div class="alert alert-warning">
-            <h5 class="alert-heading">⚠️ Teams Requiring Attention</h5>
-            @foreach (var alert in burnoutAlerts)
-            {
-                <div class="d-flex justify-content-between align-items-center @(burnoutAlerts.Last() != alert ? "border-bottom pb-2 mb-2" : "")">
-                    <div>
-                        <strong>@alert.TeamName</strong> - @alert.AlertMessage
-                        <br><small class="text-muted">Severity: @alert.Severity</small>
-                    </div>
-                    <span class="badge bg-@(GetSeverityBadgeClass(alert.Severity))">@alert.Severity</span>
+<div class="teams-container">
+    <div class="container">
+        <!-- Header Section -->
+        <div class="teams-header">
+            <div class="header-content">
+                <div class="header-text">
+                    <h1 class="page-title">
+                        <i class="fas fa-users"></i>
+                        Team Management
+                    </h1>
+                    <p class="page-subtitle">Create and manage teams within your organization to track wellness metrics effectively</p>
                 </div>
-            }
-        </div>
-    }
+                <div class="header-actions">
+                    <button class="btn btn-primary" @onclick="ShowCreateModal">
+                        <i class="fas fa-plus"></i>
+                        Create New Team
+                    </button>
+                </div>
+            </div>
 
-    <!-- Teams Grid -->
-    @if (isLoading)
-    {
-        <div class="text-center p-5">
-            <div class="spinner-border text-primary"></div>
-            <div class="mt-3">Loading teams...</div>
+            <!-- Quick Stats -->
+            <div class="quick-stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon teams">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@teams.Count</div>
+                        <div class="stat-label">Active Teams</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon alerts">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@burnoutAlerts.Count</div>
+                        <div class="stat-label">Active Alerts</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon participation">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetTotalCheckIns()</div>
+                        <div class="stat-label">Total Check-ins</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon wellness">
+                        <i class="fas fa-heart-pulse"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetOverallWellness()</div>
+                        <div class="stat-label">Avg Wellness</div>
+                    </div>
+                </div>
+            </div>
         </div>
-    }
-    else if (!teams.Any())
-    {
-        <div class="text-center p-5">
-            <div class="display-1">👥</div>
-            <h4>No teams yet</h4>
-            <p class="text-muted">Create your first team to get started with wellness tracking.</p>
-            <button class="btn btn-primary btn-lg" @onclick="ShowCreateModal">
-                Create First Team
-            </button>
-        </div>
-    }
-    else
-    {
-        <div class="row">
-            @foreach (var team in teams)
-            {
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100 @(GetTeamCardClass(team.Id))">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <h5 class="card-title">@team.Name</h5>
-                                @if (IsTeamAtRisk(team.Id))
-                                {
-                                    <span class="badge bg-warning">⚠️ Alert</span>
-                                }
+
+        <!-- Burnout Alerts -->
+        @if (burnoutAlerts.Any())
+        {
+            <div class="alerts-section">
+                <div class="alerts-header">
+                    <h2>
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        Teams Requiring Attention
+                    </h2>
+                    <span class="alert-count">@burnoutAlerts.Count alert@(burnoutAlerts.Count != 1 ? "s" : "")</span>
+                </div>
+                
+                <div class="alerts-grid">
+                    @foreach (var alert in burnoutAlerts)
+                    {
+                        <div class="alert-card @GetAlertSeverityClass(alert.Severity)">
+                            <div class="alert-icon">
+                                <i class="fas @GetAlertIcon(alert.Severity)"></i>
                             </div>
-                            
-                            @if (!string.IsNullOrEmpty(team.Description))
-                            {
-                                <p class="card-text text-muted">@team.Description</p>
-                            }
-                            
-                            <div class="small text-muted mb-3">
-                                Created: @team.CreatedAt.ToString("MMM dd, yyyy")
+                            <div class="alert-content">
+                                <h3>@alert.TeamName</h3>
+                                <p>@alert.AlertMessage</p>
+                                <div class="alert-meta">
+                                    <span class="alert-time">@GetRelativeTime(alert.AlertDate)</span>
+                                    <span class="alert-severity @alert.Severity.ToLower()">@alert.Severity Risk</span>
+                                </div>
                             </div>
-                            
-                            @if (teamSummaries.ContainsKey(team.Id))
+                            <div class="alert-actions">
+                                <button class="btn btn-sm btn-outline">
+                                    <i class="fas fa-eye"></i>
+                                    View Details
+                                </button>
+                                <button class="btn btn-sm btn-primary">
+                                    <i class="fas fa-tools"></i>
+                                    Take Action
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Teams Grid -->
+        @if (isLoading)
+        {
+            <div class="loading-section">
+                <div class="loading-spinner-large"></div>
+                <h3>Loading teams...</h3>
+                <p>Gathering team wellness data and insights</p>
+            </div>
+        }
+        else if (!teams.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h2>No Teams Yet</h2>
+                <p>Create your first team to start tracking wellness metrics and building healthier work environments.</p>
+                <button class="btn btn-primary btn-lg" @onclick="ShowCreateModal">
+                    <i class="fas fa-plus"></i>
+                    Create Your First Team
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="teams-section">
+                <div class="section-header">
+                    <h2>Your Teams</h2>
+                    <div class="view-options">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" placeholder="Search teams..." @bind="searchTerm" @oninput="FilterTeams" />
+                        </div>
+                        <div class="sort-dropdown">
+                            <select @onchange="SortTeams">
+                                <option value="name">Sort by Name</option>
+                                <option value="recent">Most Recent</option>
+                                <option value="wellness">Wellness Score</option>
+                                <option value="alerts">Alerts First</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="teams-grid">
+                    @foreach (var team in filteredTeams)
+                    {
+                        var summary = teamSummaries.ContainsKey(team.Id) ? teamSummaries[team.Id] : null;
+                        <div class="team-card @(GetTeamCardClass(team.Id))">
+                            <div class="team-header">
+                                <div class="team-avatar">
+                                    @GetTeamInitials(team.Name)
+                                </div>
+                                <div class="team-info">
+                                    <h3>@team.Name</h3>
+                                    @if (!string.IsNullOrEmpty(team.Description))
+                                    {
+                                        <p>@team.Description</p>
+                                    }
+                                    <div class="team-meta">
+                                        <span class="created-date">
+                                            <i class="fas fa-calendar"></i>
+                                            Created @team.CreatedAt.ToString("MMM dd, yyyy")
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="team-status">
+                                    @if (IsTeamAtRisk(team.Id))
+                                    {
+                                        <div class="status-badge critical">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            Alert
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="status-badge healthy">
+                                            <i class="fas fa-check-circle"></i>
+                                            Healthy
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            @if (summary != null)
                             {
-                                var summary = teamSummaries[team.Id];
-                                <div class="row text-center">
-                                    <div class="col">
-                                        <div class="fw-bold text-primary">@summary.AverageMood.ToString("F1")</div>
-                                        <small class="text-muted">Avg Mood</small>
+                                <div class="team-metrics">
+                                    <div class="metric-row">
+                                        <div class="metric">
+                                            <div class="metric-icon mood">
+                                                <i class="fas fa-smile"></i>
+                                            </div>
+                                            <div class="metric-data">
+                                                <span class="metric-value">@summary.AverageMood.ToString("F1")</span>
+                                                <span class="metric-label">Avg Mood</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="metric">
+                                            <div class="metric-icon stress">
+                                                <i class="fas fa-thermometer-half"></i>
+                                            </div>
+                                            <div class="metric-data">
+                                                <span class="metric-value">@summary.AverageStress.ToString("F1")</span>
+                                                <span class="metric-label">Avg Stress</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="metric">
+                                            <div class="metric-icon participation">
+                                                <i class="fas fa-calendar-check"></i>
+                                            </div>
+                                            <div class="metric-data">
+                                                <span class="metric-value">@summary.TotalCheckIns</span>
+                                                <span class="metric-label">Check-ins</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col">
-                                        <div class="fw-bold text-warning">@summary.AverageStress.ToString("F1")</div>
-                                        <small class="text-muted">Avg Stress</small>
-                                    </div>
-                                    <div class="col">
-                                        <div class="fw-bold text-info">@summary.TotalCheckIns</div>
-                                        <small class="text-muted">Check-ins</small>
+                                    
+                                    <div class="wellness-score">
+                                        <div class="score-circle @GetWellnessClass(summary)">
+                                            <span>@CalculateWellnessScore(summary)</span>
+                                        </div>
+                                        <span class="score-label">Wellness Score</span>
                                     </div>
                                 </div>
                             }
                             else
                             {
-                                <div class="text-center text-muted">
-                                    <small>No check-ins yet</small>
+                                <div class="team-metrics empty">
+                                    <div class="empty-metrics">
+                                        <i class="fas fa-chart-line"></i>
+                                        <span>No data yet</span>
+                                        <small>Waiting for first check-ins</small>
+                                    </div>
                                 </div>
                             }
+
+                            <div class="team-actions">
+                                <a href="/dashboard?team=@team.Id" class="btn btn-outline btn-sm">
+                                    <i class="fas fa-chart-bar"></i>
+                                    Dashboard
+                                </a>
+                                <button class="btn btn-primary btn-sm" @onclick="() => ViewTeamDetails(team.Id)">
+                                    <i class="fas fa-eye"></i>
+                                    View Details
+                                </button>
+                            </div>
                         </div>
-                        <div class="card-footer bg-transparent">
-                            <a href="/dashboard?team=@team.Id" class="btn btn-outline-primary btn-sm">
-                                View Dashboard
-                            </a>
-                        </div>
-                    </div>
+                    }
                 </div>
-            }
-        </div>
-    }
+            </div>
+        }
+    </div>
 </div>
 
 <!-- Create Team Modal -->
 @if (showCreateModal)
 {
-    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
+    <div class="modal-overlay" @onclick="HideCreateModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Create New Team</h5>
-                    <button type="button" class="btn-close" @onclick="HideCreateModal"></button>
+                    <h2>
+                        <i class="fas fa-plus-circle"></i>
+                        Create New Team
+                    </h2>
+                    <button class="btn btn-icon" @onclick="HideCreateModal">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
+                
                 <EditForm Model="newTeam" OnValidSubmit="CreateTeam">
                     <DataAnnotationsValidator />
+                    
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Team Name *</label>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-users"></i>
+                                Team Name *
+                            </label>
                             <input type="text" class="form-control" @bind="newTeam.Name" 
-                                   placeholder="Enter team name" required />
-                            <ValidationMessage For="() => newTeam.Name" />
+                                   placeholder="Enter a descriptive team name" required />
+                            <ValidationMessage For="() => newTeam.Name" class="validation-message" />
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Description</label>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-info-circle"></i>
+                                Description
+                            </label>
                             <textarea class="form-control" @bind="newTeam.Description" 
-                                      placeholder="Brief description of the team (optional)"
+                                      placeholder="Brief description of the team's role and purpose (optional)"
                                       rows="3" maxlength="500"></textarea>
-                            <ValidationMessage For="() => newTeam.Description" />
-                            <div class="form-text">
+                            <div class="form-help">
                                 @(newTeam.Description?.Length ?? 0)/500 characters
+                            </div>
+                            <ValidationMessage For="() => newTeam.Description" class="validation-message" />
+                        </div>
+                        
+                        <div class="form-preview">
+                            <h4>Preview</h4>
+                            <div class="preview-card">
+                                <div class="preview-avatar">
+                                    @GetTeamInitials(newTeam.Name ?? "New Team")
+                                </div>
+                                <div class="preview-info">
+                                    <h5>@(string.IsNullOrEmpty(newTeam.Name) ? "New Team" : newTeam.Name)</h5>
+                                    <p>@(string.IsNullOrEmpty(newTeam.Description) ? "No description provided" : newTeam.Description)</p>
+                                </div>
                             </div>
                         </div>
                         
                         @if (!string.IsNullOrEmpty(createErrorMessage))
                         {
                             <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle"></i>
                                 @createErrorMessage
                             </div>
                         }
                     </div>
+                    
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="HideCreateModal">
+                        <button type="button" class="btn btn-outline" @onclick="HideCreateModal">
                             Cancel
                         </button>
                         <button type="submit" class="btn btn-primary" disabled="@isCreating">
                             @if (isCreating)
                             {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span class="spinner-border spinner-border-sm"></span>
                                 <span>Creating...</span>
                             }
                             else
                             {
+                                <i class="fas fa-plus"></i>
                                 <span>Create Team</span>
                             }
                         </button>
@@ -178,11 +358,922 @@
     </div>
 }
 
+<style>
+    .teams-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+        padding: 2rem 0;
+    }
+
+    .teams-header {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-subtitle {
+        color: #6b7280;
+        font-size: 1.125rem;
+        margin: 0;
+        max-width: 600px;
+    }
+
+    .quick-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .stat-card {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+    }
+
+    .stat-content {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+
+    .alerts-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .alerts-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .alerts-header h2 {
+        margin: 0;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .alert-count {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .alerts-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .alert-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid;
+        background: #f9fafb;
+        transition: all 0.3s ease;
+    }
+
+    .alert-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .alert-card.high {
+        border-left-color: #ef4444;
+        background: #fef2f2;
+    }
+
+    .alert-card.medium {
+        border-left-color: #f59e0b;
+        background: #fffbeb;
+    }
+
+    .alert-card.low {
+        border-left-color: #10b981;
+        background: #ecfdf5;
+    }
+
+    .alert-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+    }
+
+    .alert-card.high .alert-icon {
+        background: #ef4444;
+    }
+
+    .alert-card.medium .alert-icon {
+        background: #f59e0b;
+    }
+
+    .alert-card.low .alert-icon {
+        background: #10b981;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-content h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .alert-content p {
+        margin: 0 0 0.75rem 0;
+        color: #4b5563;
+        line-height: 1.5;
+    }
+
+    .alert-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.875rem;
+    }
+
+    .alert-time {
+        color: #6b7280;
+    }
+
+    .alert-severity {
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+    }
+
+    .alert-severity.high {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .alert-severity.medium {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .alert-severity.low {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .alert-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .loading-section {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        color: #6b7280;
+    }
+
+    .loading-spinner-large {
+        width: 64px;
+        height: 64px;
+        border: 4px solid #e5e7eb;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1.5rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .empty-icon {
+        width: 120px;
+        height: 120px;
+        background: #f3f4f6;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        color: #9ca3af;
+        margin: 0 auto 2rem;
+    }
+
+    .teams-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .view-options {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 1rem;
+        color: #9ca3af;
+    }
+
+    .search-box input {
+        padding: 0.75rem 1rem 0.75rem 3rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        background: white;
+        color: #1f2937;
+        font-size: 0.875rem;
+        min-width: 250px;
+        transition: border-color 0.3s ease;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .sort-dropdown select {
+        padding: 0.75rem 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        background: white;
+        color: #1f2937;
+        font-size: 0.875rem;
+        cursor: pointer;
+    }
+
+    .teams-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .team-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 2px solid #e5e7eb;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .team-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+    }
+
+    .team-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        border-color: #667eea;
+    }
+
+    .team-card.at-risk {
+        border-color: #f59e0b;
+    }
+
+    .team-card.at-risk::before {
+        background: linear-gradient(90deg, #f59e0b, #ef4444);
+    }
+
+    .team-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .team-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .team-info {
+        flex: 1;
+    }
+
+    .team-info h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .team-info p {
+        margin: 0 0 0.75rem 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .team-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .status-badge.healthy {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-badge.critical {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .team-metrics {
+        margin-bottom: 1.5rem;
+    }
+
+    .metric-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .metric {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .metric-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        color: white;
+    }
+
+    .metric-icon.mood {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .metric-icon.stress {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .metric-icon.participation {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    }
+
+    .metric-data {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .metric-value {
+        font-weight: 700;
+        font-size: 1.125rem;
+        color: #1f2937;
+        line-height: 1;
+    }
+
+    .metric-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.25rem;
+    }
+
+    .wellness-score {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .score-circle {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.125rem;
+        color: white;
+        border: 3px solid;
+    }
+
+    .score-circle.excellent {
+        background: #10b981;
+        border-color: #059669;
+    }
+
+    .score-circle.good {
+        background: #3b82f6;
+        border-color: #1d4ed8;
+    }
+
+    .score-circle.fair {
+        background: #f59e0b;
+        border-color: #d97706;
+    }
+
+    .score-circle.poor {
+        background: #ef4444;
+        border-color: #dc2626;
+    }
+
+    .score-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+
+    .team-metrics.empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: #f9fafb;
+        border-radius: 12px;
+        border: 2px dashed #d1d5db;
+    }
+
+    .empty-metrics {
+        text-align: center;
+        color: #9ca3af;
+    }
+
+    .empty-metrics i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .team-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 2px solid #e5e7eb;
+        color: #6b7280;
+    }
+
+    .btn-outline:hover {
+        border-color: #667eea;
+        color: #667eea;
+    }
+
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1rem;
+    }
+
+    .btn-icon {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-icon:hover {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .modal-dialog {
+        background: white;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease-out;
+    }
+
+    @@keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-50px) scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 2rem 2rem 1rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .modal-body {
+        padding: 2rem;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        padding: 1rem 2rem 2rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        transition: border-color 0.3s ease;
+        background: white;
+        color: #1f2937;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-help {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+
+    .validation-message {
+        color: #ef4444;
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .form-preview {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: #f9fafb;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .form-preview h4 {
+        margin: 0 0 1rem 0;
+        color: #374151;
+        font-size: 1rem;
+    }
+
+    .preview-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .preview-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .preview-info h5 {
+        margin: 0 0 0.25rem 0;
+        color: #1f2937;
+        font-size: 0.875rem;
+    }
+
+    .preview-info p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .alert-danger {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    .spinner-border {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid currentColor;
+        border-top: 2px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .spinner-border-sm {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .teams-container {
+            padding: 1rem 0;
+        }
+
+        .header-content {
+            flex-direction: column;
+            gap: 1.5rem;
+            align-items: stretch;
+        }
+
+        .page-title {
+            font-size: 2rem;
+        }
+
+        .quick-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .view-options {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .search-box input {
+            min-width: auto;
+        }
+
+        .teams-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .metric-row {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+
+        .alert-card {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .alert-actions {
+            justify-content: center;
+        }
+
+        .modal-dialog {
+            margin: 1rem;
+            max-height: calc(100vh - 2rem);
+        }
+
+        .modal-header,
+        .modal-body,
+        .modal-footer {
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .quick-stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .team-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+
 @code {
     private List<TeamDto> teams = new();
+    private List<TeamDto> filteredTeams = new();
     private List<BurnoutAlertDto> burnoutAlerts = new();
     private Dictionary<int, TeamSummaryDto> teamSummaries = new();
     private bool isLoading = true;
+    private string searchTerm = string.Empty;
     
     private bool showCreateModal = false;
     private CreateTeamDto newTeam = new();
@@ -199,27 +1290,47 @@
         isLoading = true;
         StateHasChanged();
         
-        // Load teams and alerts
-        var teamsTask = TeamService.GetAllTeamsAsync();
-        var alertsTask = TeamService.GetBurnoutAlertsAsync();
-        
-        teams = await teamsTask;
-        burnoutAlerts = await alertsTask;
-        
-        // Load summaries for each team
-        var summaryTasks = teams.Select(async team =>
+        try
         {
-            var summary = await TeamService.GetTeamSummaryAsync(team.Id, 30);
-            if (summary != null)
+            // Load teams and alerts in parallel
+            var teamsTask = TeamService.GetAllTeamsAsync();
+            var alertsTask = TeamService.GetBurnoutAlertsAsync();
+            
+            teams = await teamsTask;
+            burnoutAlerts = await alertsTask;
+            
+            // Load summaries for each team
+            var summaryTasks = teams.Select(async team =>
             {
-                teamSummaries[team.Id] = summary;
-            }
-        });
-        
-        await Task.WhenAll(summaryTasks);
-        
-        isLoading = false;
-        StateHasChanged();
+                try
+                {
+                    var summary = await TeamService.GetTeamSummaryAsync(team.Id, 30);
+                    if (summary != null)
+                    {
+                        teamSummaries[team.Id] = summary;
+                    }
+                }
+                catch
+                {
+                    // Log error but don't fail the entire load
+                }
+            });
+            
+            await Task.WhenAll(summaryTasks);
+            
+            // Initialize filtered teams
+            filteredTeams = new List<TeamDto>(teams);
+        }
+        catch (Exception ex)
+        {
+            // Handle error - could show a toast or error message
+            Console.WriteLine($"Error loading data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private void ShowCreateModal()
@@ -272,6 +1383,42 @@
         }
     }
 
+    private void FilterTeams()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredTeams = new List<TeamDto>(teams);
+        }
+        else
+        {
+            filteredTeams = teams.Where(t => 
+                t.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(t.Description) && t.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void SortTeams(ChangeEventArgs e)
+    {
+        var sortBy = e.Value?.ToString();
+        
+        filteredTeams = sortBy switch
+        {
+            "recent" => filteredTeams.OrderByDescending(t => t.CreatedAt).ToList(),
+            "wellness" => filteredTeams.OrderByDescending(t => GetTeamWellnessScore(t.Id)).ToList(),
+            "alerts" => filteredTeams.OrderByDescending(t => IsTeamAtRisk(t.Id)).ThenBy(t => t.Name).ToList(),
+            _ => filteredTeams.OrderBy(t => t.Name).ToList()
+        };
+        
+        StateHasChanged();
+    }
+
+    private void ViewTeamDetails(int teamId)
+    {
+        Navigation.NavigateTo($"/dashboard?team={teamId}");
+    }
+
     private bool IsTeamAtRisk(int teamId)
     {
         return burnoutAlerts.Any(a => a.TeamId == teamId);
@@ -279,14 +1426,103 @@
 
     private string GetTeamCardClass(int teamId)
     {
-        return IsTeamAtRisk(teamId) ? "border-warning" : "";
+        return IsTeamAtRisk(teamId) ? "at-risk" : "";
     }
 
-    private static string GetSeverityBadgeClass(string severity) => severity.ToLower() switch
+    private string GetTeamInitials(string teamName)
     {
-        "high" => "danger",
-        "medium" => "warning",
-        "low" => "info",
-        _ => "secondary"
-    };
+        if (string.IsNullOrEmpty(teamName))
+            return "NT";
+
+        var words = teamName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 1)
+            return words[0].Substring(0, Math.Min(2, words[0].Length)).ToUpper();
+        
+        return (words[0].Substring(0, 1) + words[1].Substring(0, 1)).ToUpper();
+    }
+
+    private string GetAlertSeverityClass(string severity)
+    {
+        return severity.ToLower();
+    }
+
+    private string GetAlertIcon(string severity)
+    {
+        return severity.ToLower() switch
+        {
+            "high" => "fa-exclamation-triangle",
+            "medium" => "fa-exclamation-circle",
+            "low" => "fa-info-circle",
+            _ => "fa-exclamation-circle"
+        };
+    }
+
+    private string GetRelativeTime(DateTime date)
+    {
+        var timeSpan = DateTime.UtcNow - date;
+        
+        if (timeSpan.TotalMinutes < 1)
+            return "Just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} min ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hr ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        
+        return date.ToString("MMM dd");
+    }
+
+    private string GetWellnessClass(TeamSummaryDto summary)
+    {
+        var score = CalculateWellnessScore(summary);
+        
+        return score switch
+        {
+            >= 80 => "excellent",
+            >= 60 => "good", 
+            >= 40 => "fair",
+            _ => "poor"
+        };
+    }
+
+    private int CalculateWellnessScore(TeamSummaryDto summary)
+    {
+        if (summary.TotalCheckIns == 0)
+            return 0;
+
+        // Calculate wellness score based on mood (higher is better) and stress (lower is better)
+        // Mood: 1-10 scale, normalize to 0-50
+        // Stress: 1-10 scale, invert and normalize to 0-50
+        var moodScore = (summary.AverageMood - 1) / 9 * 50;
+        var stressScore = (10 - summary.AverageStress) / 9 * 50;
+        
+        return (int)Math.Round(moodScore + stressScore);
+    }
+
+    private int GetTotalCheckIns()
+    {
+        return teamSummaries.Values.Sum(s => s.TotalCheckIns);
+    }
+
+    private string GetOverallWellness()
+    {
+        if (!teamSummaries.Any())
+            return "N/A";
+
+        var averageScore = teamSummaries.Values
+            .Where(s => s.TotalCheckIns > 0)
+            .Average(s => CalculateWellnessScore(s));
+
+        return averageScore.ToString("F0");
+    }
+
+    private double GetTeamWellnessScore(int teamId)
+    {
+        if (teamSummaries.ContainsKey(teamId))
+        {
+            return CalculateWellnessScore(teamSummaries[teamId]);
+        }
+        return 0;
+    }
 }

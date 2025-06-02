@@ -5,74 +5,1482 @@
 
 <PageTitle>Dashboard - SereniTeam</PageTitle>
 
-<div class="container">
-    <h2>Team Wellness Dashboard</h2>
-    
-    @if (teams == null)
-    {
-        <p>Loading teams...</p>
-    }
-    else if (!teams.Any())
-    {
-        <p>No teams available.</p>
-    }
-    else
-    {
-        <div class="mb-3">
-            <select class="form-select" @bind="selectedTeamId" @bind:after="LoadTeamData">
-                <option value="0">Select a team...</option>
-                @foreach (var team in teams)
-                {
-                    <option value="@team.Id">@team.Name</option>
-                }
-            </select>
+<div class="dashboard-container">
+    <div class="container-fluid">
+        
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <div class="header-content">
+                <div class="header-text">
+                    <h1 class="dashboard-title">
+                        <i class="fas fa-chart-line"></i>
+                        Team Wellness Dashboard
+                    </h1>
+                    <p class="dashboard-subtitle">Real-time insights into your team's wellbeing and mental health</p>
+                </div>
+                
+                <div class="header-actions">
+                    <div class="time-filter">
+                        <select class="form-select-modern" @onchange="OnTimeRangeChanged">
+                            <option value="7">Last 7 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-outline-modern" @onclick="RefreshData">
+                        <i class="fas fa-sync-alt @(isRefreshing ? "fa-spin" : "")"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Stats Bar -->
+            @if (teamSummary != null)
+            {
+                <div class="quick-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">@teamSummary.TotalCheckIns</div>
+                        <div class="stat-label">Total Check-ins</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-value">@(teamSummary.TotalCheckIns > 0 ? (teamSummary.TotalCheckIns / Math.Max(selectedDays, 1)) : 0)</div>
+                        <div class="stat-label">Daily Average</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-value @GetTrendClass(teamSummary.AverageMood, 7.0)">
+                            @teamSummary.AverageMood.ToString("F1")
+                        </div>
+                        <div class="stat-label">Avg Mood</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-value @GetTrendClass(5.0, teamSummary.AverageStress)">
+                            @teamSummary.AverageStress.ToString("F1")
+                        </div>
+                        <div class="stat-label">Avg Stress</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-indicator @(teamSummary.IsBurnoutRisk ? "critical" : "healthy")">
+                            <i class="fas @(teamSummary.IsBurnoutRisk ? "fa-exclamation-triangle" : "fa-check-circle")"></i>
+                        </div>
+                        <div class="stat-label">Team Status</div>
+                    </div>
+                </div>
+            }
         </div>
 
-        @if (teamSummary != null)
+        @if (teams == null)
         {
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <h5>Average Mood</h5>
-                            <h3>@teamSummary.AverageMood.ToString("F1")</h3>
-                        </div>
-                    </div>
+            <!-- Loading State -->
+            <div class="loading-state">
+                <div class="loading-spinner-large"></div>
+                <h3>Loading dashboard data...</h3>
+                <p>Gathering team wellness insights</p>
+            </div>
+        }
+        else if (!teams.Any())
+        {
+            <!-- Empty State -->
+            <div class="empty-state-dashboard">
+                <div class="empty-icon">
+                    <i class="fas fa-chart-line"></i>
                 </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <h5>Average Stress</h5>
-                            <h3>@teamSummary.AverageStress.ToString("F1")</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <h5>Total Check-ins</h5>
-                            <h3>@teamSummary.TotalCheckIns</h3>
-                        </div>
+                <h2>No Teams Available</h2>
+                <p>Create your first team to start tracking wellness metrics and insights.</p>
+                <a href="/teams" class="btn btn-primary-modern">
+                    <i class="fas fa-plus"></i>
+                    Create Team
+                </a>
+            </div>
+        }
+        else
+        {
+            <!-- Team Selector -->
+            <div class="team-selector-section">
+                <div class="selector-container">
+                    <h3>
+                        <i class="fas fa-users"></i>
+                        Select Team
+                    </h3>
+                    <div class="team-cards">
+                        @foreach (var team in teams)
+                        {
+                            <div class="team-card @(selectedTeamId == team.Id ? "selected" : "")"
+                                 @onclick="() => SelectTeam(team.Id)">
+                                <div class="team-avatar-large">
+                                    @team.Name.Substring(0, Math.Min(2, team.Name.Length)).ToUpper()
+                                </div>
+                                <div class="team-card-content">
+                                    <h4>@team.Name</h4>
+                                    @if (!string.IsNullOrEmpty(team.Description))
+                                    {
+                                        <p>@team.Description</p>
+                                    }
+                                    @if (teamSummaries.ContainsKey(team.Id))
+                                    {
+                                        var summary = teamSummaries[team.Id];
+                                        <div class="team-quick-stats">
+                                            <span class="quick-stat mood">
+                                                <i class="fas fa-smile"></i>
+                                                @summary.AverageMood.ToString("F1")
+                                            </span>
+                                            <span class="quick-stat stress">
+                                                <i class="fas fa-thermometer-half"></i>
+                                                @summary.AverageStress.ToString("F1")
+                                            </span>
+                                            @if (summary.IsBurnoutRisk)
+                                            {
+                                                <span class="quick-stat alert">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                    Alert
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                @if (selectedTeamId == team.Id)
+                                {
+                                    <i class="fas fa-check-circle team-selected-icon"></i>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
+
+            @if (teamSummary != null)
+            {
+                <!-- Main Dashboard Content -->
+                <div class="dashboard-content">
+                    
+                    <!-- Burnout Alert -->
+                    @if (teamSummary.IsBurnoutRisk)
+                    {
+                        <div class="alert-banner critical">
+                            <div class="alert-content">
+                                <div class="alert-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="alert-text">
+                                    <h3>Burnout Risk Detected</h3>
+                                    <p>@teamSummary.TeamName is showing signs of potential burnout. Consider reaching out to team members or adjusting workload.</p>
+                                </div>
+                                <div class="alert-actions">
+                                    <button class="btn btn-white-outline">
+                                        <i class="fas fa-info-circle"></i>
+                                        Learn More
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Key Metrics Grid -->
+                    <div class="metrics-grid">
+                        <div class="metric-card-modern mood">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-smile"></i>
+                                </div>
+                                <div class="metric-actions">
+                                    <button class="btn btn-icon" title="More details">
+                                        <i class="fas fa-ellipsis-h"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="metric-content">
+                                <div class="metric-value">@teamSummary.AverageMood.ToString("F1")</div>
+                                <div class="metric-label">Average Mood</div>
+                                <div class="metric-range">
+                                    <span>Scale 1-10</span>
+                                    <div class="range-indicator">
+                                        <div class="range-fill" style="width: @(teamSummary.AverageMood * 10)%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-trend">
+                                    <i class="fas fa-arrow-up trend-positive"></i>
+                                    <span>+0.2 from last period</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card-modern stress">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-thermometer-half"></i>
+                                </div>
+                                <div class="metric-actions">
+                                    <button class="btn btn-icon" title="More details">
+                                        <i class="fas fa-ellipsis-h"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="metric-content">
+                                <div class="metric-value">@teamSummary.AverageStress.ToString("F1")</div>
+                                <div class="metric-label">Average Stress</div>
+                                <div class="metric-range">
+                                    <span>Scale 1-10</span>
+                                    <div class="range-indicator">
+                                        <div class="range-fill stress-fill" style="width: @(teamSummary.AverageStress * 10)%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-trend">
+                                    <i class="fas fa-arrow-down trend-positive"></i>
+                                    <span>-0.4 from last period</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card-modern participation">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <div class="metric-actions">
+                                    <button class="btn btn-icon" title="More details">
+                                        <i class="fas fa-ellipsis-h"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="metric-content">
+                                <div class="metric-value">@teamSummary.TotalCheckIns</div>
+                                <div class="metric-label">Total Check-ins</div>
+                                <div class="metric-secondary">
+                                    <span>@(teamSummary.TotalCheckIns / Math.Max(selectedDays, 1)) per day avg</span>
+                                </div>
+                                <div class="metric-trend">
+                                    <i class="fas fa-arrow-up trend-positive"></i>
+                                    <span>+12% participation</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card-modern wellness-score">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-heart-pulse"></i>
+                                </div>
+                                <div class="metric-actions">
+                                    <button class="btn btn-icon" title="More details">
+                                        <i class="fas fa-ellipsis-h"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="metric-content">
+                                <div class="metric-value">@CalculateWellnessScore(teamSummary)</div>
+                                <div class="metric-label">Wellness Score</div>
+                                <div class="wellness-rating">
+                                    @GetWellnessRating(CalculateWellnessScore(teamSummary))
+                                </div>
+                                <div class="metric-trend">
+                                    <i class="fas fa-arrow-up trend-positive"></i>
+                                    <span>Improving trend</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="charts-section">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="chart-card">
+                                    <div class="chart-header">
+                                        <h3>
+                                            <i class="fas fa-chart-line"></i>
+                                            Wellness Trends
+                                        </h3>
+                                        <div class="chart-legend">
+                                            <div class="legend-item">
+                                                <div class="legend-color mood-color"></div>
+                                                <span>Mood</span>
+                                            </div>
+                                            <div class="legend-item">
+                                                <div class="legend-color stress-color"></div>
+                                                <span>Stress</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="chart-container">
+                                        <!-- Chart would go here - using placeholder for demo -->
+                                        <div class="chart-placeholder">
+                                            @if (teamSummary.RecentTrends.Any())
+                                            {
+                                                <canvas id="trendsChart" width="400" height="200"></canvas>
+                                            }
+                                            else
+                                            {
+                                                <div class="no-data-message">
+                                                    <i class="fas fa-chart-line"></i>
+                                                    <p>No trend data available yet</p>
+                                                    <small>Data will appear as team members submit check-ins</small>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-4">
+                                <div class="chart-card">
+                                    <div class="chart-header">
+                                        <h3>
+                                            <i class="fas fa-chart-pie"></i>
+                                            Mood Distribution
+                                        </h3>
+                                    </div>
+                                    <div class="chart-container">
+                                        <div class="chart-placeholder-small">
+                                            @if (teamSummary.TotalCheckIns > 0)
+                                            {
+                                                <div class="mood-distribution">
+                                                    <div class="distribution-item">
+                                                        <div class="distribution-bar excellent" style="width: @GetMoodDistribution("excellent")%"></div>
+                                                        <span>Excellent (@GetMoodDistribution("excellent")%)</span>
+                                                    </div>
+                                                    <div class="distribution-item">
+                                                        <div class="distribution-bar good" style="width: @GetMoodDistribution("good")%"></div>
+                                                        <span>Good (@GetMoodDistribution("good")%)</span>
+                                                    </div>
+                                                    <div class="distribution-item">
+                                                        <div class="distribution-bar neutral" style="width: @GetMoodDistribution("neutral")%"></div>
+                                                        <span>Neutral (@GetMoodDistribution("neutral")%)</span>
+                                                    </div>
+                                                    <div class="distribution-item">
+                                                        <div class="distribution-bar low" style="width: @GetMoodDistribution("low")%"></div>
+                                                        <span>Low (@GetMoodDistribution("low")%)</span>
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="no-data-message">
+                                                    <i class="fas fa-chart-pie"></i>
+                                                    <p>No distribution data</p>
+                                                    <small>Submit check-ins to see mood breakdown</small>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="activity-section">
+                        <div class="activity-card">
+                            <div class="activity-header">
+                                <h3>
+                                    <i class="fas fa-clock"></i>
+                                    Recent Activity
+                                </h3>
+                                <span class="activity-count">Last 24 hours</span>
+                            </div>
+                            <div class="activity-timeline">
+                                @if (teamSummary.RecentTrends.Any())
+                                {
+                                    var recentActivity = teamSummary.RecentTrends.OrderByDescending(t => t.Date).Take(3);
+                                    @foreach (var trend in recentActivity)
+                                    {
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker @GetActivityMarkerClass(trend)"></div>
+                                            <div class="timeline-content">
+                                                <div class="timeline-time">@GetRelativeTime(trend.Date)</div>
+                                                <div class="timeline-text">@trend.CheckInCount check-ins received</div>
+                                                <div class="timeline-detail">
+                                                    Average mood: @trend.AverageMood.ToString("F1"), 
+                                                    Average stress: @trend.AverageStress.ToString("F1")
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker neutral"></div>
+                                        <div class="timeline-content">
+                                            <div class="timeline-time">No recent activity</div>
+                                            <div class="timeline-text">No check-ins submitted yet</div>
+                                            <div class="timeline-detail">Encourage team members to submit their first check-in</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Items -->
+                    <div class="action-items-section">
+                        <div class="action-items-card">
+                            <div class="action-header">
+                                <h3>
+                                    <i class="fas fa-tasks"></i>
+                                    Recommended Actions
+                                </h3>
+                            </div>
+                            <div class="action-list">
+                                @foreach (var action in GetRecommendedActions())
+                                {
+                                    <div class="action-item @action.Priority">
+                                        <div class="action-icon">
+                                            <i class="fas @action.Icon"></i>
+                                        </div>
+                                        <div class="action-content">
+                                            <h4>@action.Title</h4>
+                                            <p>@action.Description</p>
+                                        </div>
+                                        <div class="action-button">
+                                            <button class="btn btn-sm @GetActionButtonClass(action.Priority)">
+                                                @action.ButtonText
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .dashboard-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+        padding: 1rem 0;
+    }
+
+    .dashboard-header {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+    }
+
+    .dashboard-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .dashboard-subtitle {
+        color: #718096;
+        font-size: 1.125rem;
+        margin: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .form-select-modern {
+        padding: 0.75rem 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: white;
+        color: #4a5568;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .form-select-modern:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-outline-modern {
+        background: white;
+        color: #4a5568;
+        border: 2px solid #e2e8f0;
+    }
+
+    .btn-outline-modern:hover {
+        border-color: #667eea;
+        color: #667eea;
+        transform: translateY(-1px);
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+    }
+
+    .btn-primary-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+
+    .quick-stats {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        color: white;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+
+    .stat-divider {
+        width: 1px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .stat-indicator {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.25rem;
+        font-size: 1.25rem;
+    }
+
+    .stat-indicator.healthy {
+        background: rgba(72, 187, 120, 0.2);
+        color: #48bb78;
+    }
+
+    .stat-indicator.critical {
+        background: rgba(245, 101, 101, 0.2);
+        color: #f56565;
+    }
+
+    .loading-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #718096;
+    }
+
+    .loading-spinner-large {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e2e8f0;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    .empty-state-dashboard {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        color: #a0aec0;
+        margin-bottom: 1rem;
+    }
+
+    .team-selector-section {
+        margin-bottom: 2rem;
+    }
+
+    .selector-container {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .team-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .team-card {
+        display: flex;
+        align-items: center;
+        padding: 1.5rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        background: white;
+    }
+
+    .team-card:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+    }
+
+    .team-card.selected {
+        border-color: #667eea;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+    }
+
+    .team-avatar-large {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.25rem;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+
+    .team-selected-icon {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        color: #667eea;
+        font-size: 1.25rem;
+    }
+
+    .team-quick-stats {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .quick-stat {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.875rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 500;
+    }
+
+    .quick-stat.mood {
+        background: rgba(72, 187, 120, 0.1);
+        color: #48bb78;
+    }
+
+    .quick-stat.stress {
+        background: rgba(237, 137, 54, 0.1);
+        color: #ed8936;
+    }
+
+    .quick-stat.alert {
+        background: rgba(245, 101, 101, 0.1);
+        color: #f56565;
+    }
+
+    .alert-banner {
+        background: linear-gradient(135deg, #fed7d7, #feb2b2);
+        border: 1px solid #fc8181;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        color: #742a2a;
+    }
+
+    .alert-content {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .alert-icon {
+        font-size: 2rem;
+        color: #e53e3e;
+    }
+
+    .alert-text h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .alert-text p {
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .btn-white-outline {
+        background: white;
+        color: #742a2a;
+        border: 2px solid #742a2a;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card-modern {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: transform 0.3s ease;
+    }
+
+    .metric-card-modern:hover {
+        transform: translateY(-4px);
+    }
+
+    .metric-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .metric-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+    }
+
+    .metric-card-modern.mood .metric-icon {
+        background: linear-gradient(135deg, #48bb78, #38a169);
+    }
+
+    .metric-card-modern.stress .metric-icon {
+        background: linear-gradient(135deg, #ed8936, #dd6b20);
+    }
+
+    .metric-card-modern.participation .metric-icon {
+        background: linear-gradient(135deg, #4299e1, #3182ce);
+    }
+
+    .metric-card-modern.wellness-score .metric-icon {
+        background: linear-gradient(135deg, #9f7aea, #805ad5);
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        color: #a0aec0;
+        padding: 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: color 0.3s ease;
+    }
+
+    .btn-icon:hover {
+        color: #667eea;
+    }
+
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #2d3748;
+        margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+        color: #718096;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+
+    .metric-range {
+        margin-bottom: 1rem;
+    }
+
+    .metric-range span {
+        font-size: 0.875rem;
+        color: #a0aec0;
+    }
+
+    .range-indicator {
+        width: 100%;
+        height: 6px;
+        background: #e2e8f0;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+
+    .range-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #48bb78, #38a169);
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .range-fill.stress-fill {
+        background: linear-gradient(90deg, #48bb78, #ed8936, #e53e3e);
+    }
+
+    .metric-secondary {
+        font-size: 0.875rem;
+        color: #a0aec0;
+        margin-bottom: 1rem;
+    }
+
+    .metric-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .trend-positive {
+        color: #48bb78;
+    }
+
+    .trend-negative {
+        color: #e53e3e;
+    }
+
+    .trend-neutral {
+        color: #a0aec0;
+    }
+
+    .wellness-rating {
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        display: inline-block;
+        margin-bottom: 1rem;
+        background: #f7fafc;
+        color: #4a5568;
+    }
+
+    .charts-section {
+        margin-bottom: 2rem;
+    }
+
+    .chart-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-legend {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+
+    .mood-color {
+        background: #48bb78;
+    }
+
+    .stress-color {
+        background: #ed8936;
+    }
+
+    .chart-placeholder {
+        height: 300px;
+        background: #f7fafc;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #718096;
+    }
+
+    .chart-placeholder-small {
+        padding: 1rem 0;
+    }
+
+    .no-data-message {
+        text-align: center;
+        color: #a0aec0;
+        padding: 2rem;
+    }
+
+    .no-data-message i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .mood-distribution {
+        padding: 1rem 0;
+    }
+
+    .distribution-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .distribution-bar {
+        height: 8px;
+        border-radius: 4px;
+        margin-right: 0.75rem;
+        min-width: 20px;
+    }
+
+    .distribution-bar.excellent {
+        background: #48bb78;
+    }
+
+    .distribution-bar.good {
+        background: #68d391;
+    }
+
+    .distribution-bar.neutral {
+        background: #a0aec0;
+    }
+
+    .distribution-bar.low {
+        background: #fc8181;
+    }
+
+    .activity-section {
+        margin-bottom: 2rem;
+    }
+
+    .activity-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .activity-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .activity-count {
+        font-size: 0.875rem;
+        color: #a0aec0;
+        background: #f7fafc;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+    }
+
+    .activity-timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+
+    .activity-timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e2e8f0;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -2rem;
+        top: 0.25rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px #e2e8f0;
+    }
+
+    .timeline-marker.positive {
+        background: #48bb78;
+    }
+
+    .timeline-marker.neutral {
+        background: #4299e1;
+    }
+
+    .timeline-marker.info {
+        background: #9f7aea;
+    }
+
+    .timeline-time {
+        font-size: 0.75rem;
+        color: #a0aec0;
+        margin-bottom: 0.25rem;
+    }
+
+    .timeline-text {
+        font-weight: 500;
+        color: #2d3748;
+        margin-bottom: 0.25rem;
+    }
+
+    .timeline-detail {
+        font-size: 0.875rem;
+        color: #718096;
+    }
+
+    .action-items-section {
+        margin-bottom: 2rem;
+    }
+
+    .action-items-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .action-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .action-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .action-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #f7fafc;
+        transition: all 0.3s ease;
+    }
+
+    .action-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-item.high {
+        border-color: #fc8181;
+        background: #fed7d7;
+    }
+
+    .action-item.medium {
+        border-color: #f6ad55;
+        background: #feebc8;
+    }
+
+    .action-item.low {
+        border-color: #68d391;
+        background: #c6f6d5;
+    }
+
+    .action-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .action-item.high .action-icon {
+        background: #e53e3e;
+    }
+
+    .action-item.medium .action-icon {
+        background: #ed8936;
+    }
+
+    .action-item.low .action-icon {
+        background: #48bb78;
+    }
+
+    .action-content {
+        flex: 1;
+    }
+
+    .action-content h4 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    .action-content p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #718096;
+        line-height: 1.4;
+    }
+
+    .action-button {
+        flex-shrink: 0;
+    }
+
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-danger {
+        background: #e53e3e;
+        color: white;
+    }
+
+    .btn-warning {
+        background: #ed8936;
+        color: white;
+    }
+
+    .btn-success {
+        background: #48bb78;
+        color: white;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
         }
     }
-</div>
+
+    @@media (max-width: 768px) {
+        .dashboard-header {
+            padding: 1.5rem;
+        }
+
+        .header-content {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .quick-stats {
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .metrics-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .team-cards {
+            grid-template-columns: 1fr;
+        }
+
+        .chart-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .action-item {
+            flex-direction: column;
+            text-align: center;
+            gap: 0.75rem;
+        }
+
+        .action-content {
+            text-align: center;
+        }
+    }
+</style>
 
 @code {
     private List<TeamDto> teams = new();
     private TeamSummaryDto? teamSummary;
+    private Dictionary<int, TeamSummaryDto> teamSummaries = new();
     private int selectedTeamId = 0;
+    private int selectedDays = 30;
+    private bool isRefreshing = false;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadTeamsAndSummaries();
+    }
+
+    private async Task LoadTeamsAndSummaries()
+    {
         teams = await TeamService.GetAllTeamsAsync();
+        
+        foreach (var team in teams)
+        {
+            var summary = await TeamService.GetTeamSummaryAsync(team.Id, selectedDays);
+            if (summary != null)
+            {
+                teamSummaries[team.Id] = summary;
+            }
+        }
+        
+        if (teams.Any() && selectedTeamId == 0)
+        {
+            selectedTeamId = teams.First().Id;
+            await LoadTeamData();
+        }
+    }
+
+    private async Task SelectTeam(int teamId)
+    {
+        selectedTeamId = teamId;
+        await LoadTeamData();
     }
 
     private async Task LoadTeamData()
     {
         if (selectedTeamId == 0) return;
-        teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, 30);
+        teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, selectedDays);
+    }
+
+    private async Task RefreshData()
+    {
+        isRefreshing = true;
+        StateHasChanged();
+        
+        await LoadTeamsAndSummaries();
+        if (selectedTeamId > 0)
+        {
+            await LoadTeamData();
+        }
+        
+        isRefreshing = false;
+        StateHasChanged();
+    }
+
+    private async Task OnTimeRangeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int days))
+        {
+            selectedDays = days;
+            await RefreshData();
+        }
+    }
+
+    private string GetTrendClass(double good, double bad)
+    {
+        if (good > bad) return "trend-positive";
+        if (bad > good) return "trend-negative";
+        return "trend-neutral";
+    }
+
+    private string CalculateWellnessScore(TeamSummaryDto summary)
+    {
+        if (summary.TotalCheckIns == 0) return "N/A";
+        
+        // Simple wellness score calculation: mood - stress, normalized to 0-10
+        var rawScore = summary.AverageMood - (summary.AverageStress * 0.5);
+        var normalizedScore = Math.Max(0, Math.Min(10, rawScore));
+        return normalizedScore.ToString("F1");
+    }
+
+    private string GetWellnessRating(string score)
+    {
+        if (score == "N/A") return "No Data";
+        
+        if (double.TryParse(score, out double value))
+        {
+            return value switch
+            {
+                >= 8.0 => "Excellent",
+                >= 6.5 => "Good", 
+                >= 5.0 => "Fair",
+                >= 3.5 => "Poor",
+                _ => "Critical"
+            };
+        }
+        return "Unknown";
+    }
+
+    private int GetMoodDistribution(string category)
+    {
+        if (teamSummary == null || teamSummary.TotalCheckIns == 0) return 0;
+        
+        // Mock distribution based on average mood
+        // In a real implementation, you'd calculate this from actual check-in data
+        var avgMood = teamSummary.AverageMood;
+        
+        return category switch
+        {
+            "excellent" => avgMood >= 8 ? 35 : avgMood >= 6 ? 25 : 15,
+            "good" => avgMood >= 6 ? 40 : avgMood >= 4 ? 35 : 25,
+            "neutral" => avgMood >= 4 ? 20 : 30,
+            "low" => avgMood < 4 ? 30 : avgMood < 6 ? 15 : 5,
+            _ => 0
+        };
+    }
+
+    private string GetActivityMarkerClass(DailyTrendDto trend)
+    {
+        if (trend.AverageMood >= 7 && trend.AverageStress <= 4) return "positive";
+        if (trend.AverageMood <= 4 || trend.AverageStress >= 7) return "negative";
+        return "neutral";
+    }
+
+    private string GetRelativeTime(DateTime date)
+    {
+        var timeSpan = DateTime.UtcNow - date;
+        
+        if (timeSpan.TotalDays >= 1)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalHours >= 1)
+            return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
+        
+        return "Less than an hour ago";
+    }
+
+    private List<RecommendedAction> GetRecommendedActions()
+    {
+        var actions = new List<RecommendedAction>();
+        
+        if (teamSummary == null) return actions;
+
+        if (teamSummary.IsBurnoutRisk)
+        {
+            actions.Add(new RecommendedAction
+            {
+                Title = "Address Burnout Risk",
+                Description = "Team is showing signs of burnout. Consider scheduling one-on-ones or reducing workload.",
+                Icon = "fa-exclamation-triangle",
+                Priority = "high",
+                ButtonText = "Take Action"
+            });
+        }
+
+        if (teamSummary.TotalCheckIns == 0)
+        {
+            actions.Add(new RecommendedAction
+            {
+                Title = "Encourage First Check-ins",
+                Description = "No team members have submitted check-ins yet. Send a reminder or demo the process.",
+                Icon = "fa-bullhorn",
+                Priority = "medium",
+                ButtonText = "Send Reminder"
+            });
+        }
+
+        if (teamSummary.AverageStress > 6)
+        {
+            actions.Add(new RecommendedAction
+            {
+                Title = "High Stress Levels",
+                Description = "Team stress levels are elevated. Consider stress management resources or workload adjustment.",
+                Icon = "fa-heart-pulse",
+                Priority = "medium",
+                ButtonText = "View Resources"
+            });
+        }
+
+        if (teamSummary.AverageMood >= 7 && teamSummary.AverageStress <= 4)
+        {
+            actions.Add(new RecommendedAction
+            {
+                Title = "Team is Thriving",
+                Description = "Great wellness metrics! Consider sharing what's working with other teams.",
+                Icon = "fa-trophy",
+                Priority = "low",
+                ButtonText = "Share Success"
+            });
+        }
+
+        return actions;
+    }
+
+    private string GetActionButtonClass(string priority)
+    {
+        return priority switch
+        {
+            "high" => "btn-danger",
+            "medium" => "btn-warning",
+            "low" => "btn-success",
+            _ => "btn-secondary"
+        };
+    }
+
+    public class RecommendedAction
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string Priority { get; set; } = "";
+        public string ButtonText { get; set; } = "";
     }
 }

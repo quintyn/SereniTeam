@@ -6,12 +6,110 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <h1>SereniTeam</h1>
+        <div class="top-row">
+            <div class="container-fluid">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="header-brand">
+                        <i class="fas fa-heart-pulse me-2"></i>
+                        <span class="brand-text">SereniTeam</span>
+                    </div>
+                    
+                    <div class="header-actions d-flex align-items-center gap-3">
+                        <div class="wellness-indicator">
+                            <i class="fas fa-circle text-success"></i>
+                            <span class="small">System Healthy</span>
+                        </div>
+                        
+                        <div class="user-menu">
+                            <button class="btn btn-outline-light btn-sm">
+                                <i class="fas fa-user"></i>
+                                <span class="d-none d-md-inline ms-1">Profile</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <article class="content px-4">
+        <article class="content">
             @Body
         </article>
     </main>
 </div>
+
+<style>
+    .header-brand {
+        display: flex;
+        align-items: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .brand-text {
+        background: linear-gradient(45deg, #ffffff, #e0e9ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .header-actions {
+        color: white;
+    }
+
+    .wellness-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50px;
+        font-size: 0.875rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .wellness-indicator .fas {
+        font-size: 0.75rem;
+        animation: pulse 2s infinite;
+    }
+
+    .btn-outline-light {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+
+    .btn-outline-light:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        color: white;
+        transform: translateY(-1px);
+    }
+
+    @@keyframes pulse {
+        0% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+        100% {
+            opacity: 1;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .header-brand {
+            font-size: 1.125rem;
+        }
+        
+        .wellness-indicator span {
+            display: none;
+        }
+        
+        .header-actions {
+            gap: 0.5rem;
+        }
+    }
+</style>
