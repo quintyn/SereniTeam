@@ -1,0 +1,405 @@
+@* Shared/Components/Toast.razor *@
+
+<div class="toast-container">
+    @foreach (var toast in toasts)
+    {
+        <div class="toast @toast.Type @(toast.IsVisible ? "show" : "hide")" 
+             style="animation-delay: @(toast.Index * 0.1)s">
+            <div class="toast-icon @toast.Type">
+                <i class="fas @GetIcon(toast.Type)"></i>
+            </div>
+            <div class="toast-content">
+                <div class="toast-title">@toast.Title</div>
+                @if (!string.IsNullOrEmpty(toast.Message))
+                {
+                    <div class="toast-message">@toast.Message</div>
+                }
+            </div>
+            <button class="toast-close" @onclick="() => RemoveToast(toast.Id)">
+                <i class="fas fa-times"></i>
+            </button>
+            @if (toast.Progress)
+            {
+                <div class="toast-progress">
+                    <div class="progress-bar" style="animation-duration: @(toast.Duration)ms"></div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@implements IDisposable
+@inject IJSRuntime JSRuntime
+
+@code {
+    private List<ToastItem> toasts = new();
+    private int nextId = 1;
+
+    public void ShowToast(string title, string? message = null, ToastType type = ToastType.Info, 
+                         int duration = 5000, bool progress = true)
+    {
+        var toast = new ToastItem
+        {
+            Id = nextId++,
+            Title = title,
+            Message = message,
+            Type = type.ToString().ToLower(),
+            Duration = duration,
+            Progress = progress,
+            IsVisible = false,
+            Index = toasts.Count
+        };
+
+        toasts.Add(toast);
+        StateHasChanged();
+
+        // Trigger show animation
+        Task.Delay(100).ContinueWith(async _ =>
+        {
+            toast.IsVisible = true;
+            await InvokeAsync(StateHasChanged);
+
+            // Auto-remove after duration
+            if (duration > 0)
+            {
+                await Task.Delay(duration);
+                await RemoveToast(toast.Id);
+            }
+        });
+    }
+
+    public void ShowSuccess(string title, string? message = null, int duration = 4000)
+    {
+        ShowToast(title, message, ToastType.Success, duration);
+    }
+
+    public void ShowError(string title, string? message = null, int duration = 8000)
+    {
+        ShowToast(title, message, ToastType.Error, duration);
+    }
+
+    public void ShowWarning(string title, string? message = null, int duration = 6000)
+    {
+        ShowToast(title, message, ToastType.Warning, duration);
+    }
+
+    public void ShowInfo(string title, string? message = null, int duration = 5000)
+    {
+        ShowToast(title, message, ToastType.Info, duration);
+    }
+
+    public async Task RemoveToast(int id)
+    {
+        var toast = toasts.FirstOrDefault(t => t.Id == id);
+        if (toast != null)
+        {
+            toast.IsVisible = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Wait for animation to complete before removing
+            await Task.Delay(300);
+            toasts.Remove(toast);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void ClearAll()
+    {
+        toasts.Clear();
+        StateHasChanged();
+    }
+
+    private string GetIcon(string type)
+    {
+        return type switch
+        {
+            "success" => "fa-check-circle",
+            "error" => "fa-exclamation-circle",
+            "warning" => "fa-exclamation-triangle",
+            "info" => "fa-info-circle",
+            _ => "fa-info-circle"
+        };
+    }
+
+    public void Dispose()
+    {
+        toasts.Clear();
+    }
+
+    public enum ToastType
+    {
+        Success,
+        Error,
+        Warning,
+        Info
+    }
+
+    private class ToastItem
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public string? Message { get; set; }
+        public string Type { get; set; } = "info";
+        public int Duration { get; set; } = 5000;
+        public bool Progress { get; set; } = true;
+        public bool IsVisible { get; set; } = false;
+        public int Index { get; set; } = 0;
+    }
+}
+
+<style>
+    .toast-container {
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        z-index: 1080;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .toast {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e5e7eb;
+        padding: 1rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        pointer-events: auto;
+        position: relative;
+        overflow: hidden;
+        transform: translateX(100%);
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: slideInRight 0.3s ease-out forwards;
+    }
+
+    .toast.show {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    .toast.hide {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    .toast.success {
+        border-left: 4px solid #10b981;
+    }
+
+    .toast.error {
+        border-left: 4px solid #ef4444;
+    }
+
+    .toast.warning {
+        border-left: 4px solid #f59e0b;
+    }
+
+    .toast.info {
+        border-left: 4px solid #3b82f6;
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        color: white;
+        flex-shrink: 0;
+        margin-top: 0.125rem;
+    }
+
+    .toast-icon.success {
+        background: #10b981;
+    }
+
+    .toast-icon.error {
+        background: #ef4444;
+    }
+
+    .toast-icon.warning {
+        background: #f59e0b;
+    }
+
+    .toast-icon.info {
+        background: #3b82f6;
+    }
+
+    .toast-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        color: #1f2937;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        margin-bottom: 0.25rem;
+    }
+
+    .toast-message {
+        color: #6b7280;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        word-wrap: break-word;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+        margin-top: 0.125rem;
+    }
+
+    .toast-close:hover {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        width: 100%;
+        background: currentColor;
+        transform-origin: left;
+        animation: progressShrink linear forwards;
+    }
+
+    .toast.success .progress-bar {
+        background: #10b981;
+    }
+
+    .toast.error .progress-bar {
+        background: #ef4444;
+    }
+
+    .toast.warning .progress-bar {
+        background: #f59e0b;
+    }
+
+    .toast.info .progress-bar {
+        background: #3b82f6;
+    }
+
+    /* Animations */
+    @@keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @@keyframes progressShrink {
+        from {
+            transform: scaleX(1);
+        }
+        to {
+            transform: scaleX(0);
+        }
+    }
+
+    /* Hover effects */
+    .toast:hover .progress-bar {
+        animation-play-state: paused;
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .toast-container {
+            top: 1rem;
+            right: 1rem;
+            left: 1rem;
+            max-width: none;
+        }
+
+        .toast {
+            padding: 0.875rem;
+        }
+
+        .toast-title,
+        .toast-message {
+            font-size: 0.8125rem;
+        }
+
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+            font-size: 0.75rem;
+        }
+    }
+
+    /* Multiple toast stacking */
+    .toast:nth-child(1) { z-index: 1060; }
+    .toast:nth-child(2) { z-index: 1059; }
+    .toast:nth-child(3) { z-index: 1058; }
+    .toast:nth-child(4) { z-index: 1057; }
+    .toast:nth-child(5) { z-index: 1056; }
+
+    /* Accessibility */
+    .toast {
+        role: alert;
+        aria-live: polite;
+    }
+
+    .toast.error {
+        aria-live: assertive;
+    }
+
+    /* Dark mode support */
+    @@media (prefers-color-scheme: dark) {
+        .toast {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f9fafb;
+        }
+
+        .toast-title {
+            color: #f9fafb;
+        }
+
+        .toast-message {
+            color: #d1d5db;
+        }
+
+        .toast-close {
+            color: #9ca3af;
+        }
+
+        .toast-close:hover {
+            background: #4b5563;
+            color: #e5e7eb;
+        }
+
+        .toast-progress {
+            background: rgba(255, 255, 255, 0.1);
+        }
+    }
+</style>

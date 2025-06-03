@@ -1,61 +1,939 @@
 ﻿@page "/"
+@layout EmptyLayout
 
 <PageTitle>SereniTeam - Team Wellness Dashboard</PageTitle>
 
-<div class="hero-section">
-    <h1 class="display-4">Welcome to SereniTeam</h1>
-    <p class="lead">Monitor and improve your team's wellness with anonymous check-ins and real-time insights.</p>
-    
-    <div class="row mt-5">
-        <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <div class="display-1 text-primary">📝</div>
-                    <h5 class="card-title">Submit Check-in</h5>
-                    <p class="card-text">Share your current mood and stress levels anonymously.</p>
-                    <a href="/checkin" class="btn btn-primary">Get Started</a>
-                </div>
-            </div>
-        </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SereniTeam - Team Wellness Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <div class="display-1 text-success">📊</div>
-                    <h5 class="card-title">View Dashboard</h5>
-                    <p class="card-text">See real-time team wellness trends and analytics.</p>
-                    <a href="/dashboard" class="btn btn-success">View Dashboard</a>
-                </div>
-            </div>
-        </div>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
         
-        <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <div class="display-1 text-info">👥</div>
-                    <h5 class="card-title">Manage Teams</h5>
-                    <p class="card-text">Create and manage teams within your organization.</p>
-                    <a href="/teams" class="btn btn-info">Manage Teams</a>
+        .landing-page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100vh;
+            z-index: 1000;
+        }
+        
+        /* Navigation Bar */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1001;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+        
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+        
+        .nav-link {
+            color: #6b7280;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #667eea;
+        }
+        
+        .nav-cta {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.3s ease;
+        }
+        
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-page">
+        <!-- Navigation -->
+        <nav class="top-nav">
+            <div class="nav-content">
+                <a href="/" class="nav-brand">
+                    <i class="fas fa-heart-pulse"></i>
+                    SereniTeam
+                </a>
+                <div class="nav-links">
+                    <a href="/dashboard" class="nav-link">Dashboard</a>
+                    <a href="/teams" class="nav-link">Teams</a>
+                    <a href="/checkin" class="nav-cta">Start Check-in</a>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
+        </nav>
 
-<style>
-    .hero-section {
-        text-align: center;
-        padding: 4rem 0;
-    }
-    
-    .card {
-        transition: transform 0.2s;
-        border: none;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    }
-</style>
+        <div class="hero-container">
+            <div class="hero-background">
+                <div class="hero-gradient"></div>
+                <div class="floating-elements">
+                    <div class="floating-element element-1"></div>
+                    <div class="floating-element element-2"></div>
+                    <div class="floating-element element-3"></div>
+                </div>
+            </div>
+
+            <div class="hero-content">
+                <div class="container">
+                    <div class="row align-items-center min-vh-100">
+                        <div class="col-lg-6">
+                            <div class="hero-text fade-in">
+                                <div class="hero-badge">
+                                    <i class="fas fa-heart-pulse"></i>
+                                    <span>Wellness Made Simple</span>
+                                </div>
+                                
+                                <h1 class="hero-title">
+                                    Transform Your Team's
+                                    <span class="text-gradient">Wellbeing</span>
+                                </h1>
+                                
+                                <p class="hero-description">
+                                    SereniTeam enables anonymous wellness check-ins, real-time insights, and proactive burnout prevention. 
+                                    Build a healthier, more productive team with data-driven wellness decisions.
+                                </p>
+                                
+                                <div class="hero-actions">
+                                    <a href="/checkin" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-plus-circle"></i>
+                                        Start Your Check-in
+                                    </a>
+                                    <a href="/dashboard" class="btn btn-outline btn-lg">
+                                        <i class="fas fa-chart-line"></i>
+                                        View Dashboard
+                                    </a>
+                                </div>
+                                
+                                <div class="hero-stats">
+                                    <div class="stat-item">
+                                        <div class="stat-number">100%</div>
+                                        <div class="stat-label">Anonymous</div>
+                                    </div>
+                                    <div class="stat-divider"></div>
+                                    <div class="stat-item">
+                                        <div class="stat-number">Real-time</div>
+                                        <div class="stat-label">Insights</div>
+                                    </div>
+                                    <div class="stat-divider"></div>
+                                    <div class="stat-item">
+                                        <div class="stat-number">24/7</div>
+                                        <div class="stat-label">Monitoring</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="hero-visual slide-up">
+                                <div class="dashboard-preview">
+                                    <div class="preview-header">
+                                        <div class="preview-dots">
+                                            <span class="dot red"></span>
+                                            <span class="dot yellow"></span>
+                                            <span class="dot green"></span>
+                                        </div>
+                                        <div class="preview-title">SereniTeam Dashboard</div>
+                                    </div>
+                                    
+                                    <div class="preview-content">
+                                        <div class="metric-cards">
+                                            <div class="mini-card mood">
+                                                <div class="card-icon">😊</div>
+                                                <div class="card-value">7.2</div>
+                                                <div class="card-label">Avg Mood</div>
+                                            </div>
+                                            <div class="mini-card stress">
+                                                <div class="card-icon">📊</div>
+                                                <div class="card-value">4.1</div>
+                                                <div class="card-label">Stress Level</div>
+                                            </div>
+                                            <div class="mini-card participation">
+                                                <div class="card-icon">👥</div>
+                                                <div class="card-value">89%</div>
+                                                <div class="card-label">Participation</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="chart-preview">
+                                            <div class="chart-header">
+                                                <h4>Wellness Trends</h4>
+                                                <div class="chart-legend">
+                                                    <span class="legend-item mood">Mood</span>
+                                                    <span class="legend-item stress">Stress</span>
+                                                </div>
+                                            </div>
+                                            <div class="chart-area">
+                                                <svg viewBox="0 0 300 120" class="trend-chart">
+                                                    <polyline points="20,80 60,60 100,50 140,45 180,40 220,35 260,30" 
+                                                             stroke="#48bb78" stroke-width="3" fill="none" class="mood-line"/>
+                                                    <polyline points="20,60 60,65 100,70 140,68 180,65 220,60 260,58" 
+                                                             stroke="#ed8936" stroke-width="3" fill="none" class="stress-line"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <section class="features-section">
+            <div class="container">
+                <div class="section-header text-center">
+                    <h2 class="section-title">Everything You Need for Team Wellness</h2>
+                    <p class="section-description">
+                        Comprehensive tools to monitor, analyze, and improve your team's mental health and productivity.
+                    </p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="feature-card slide-up" style="animation-delay: 0.1s;">
+                            <div class="feature-icon checkin">
+                                <i class="fas fa-comment-medical"></i>
+                            </div>
+                            <h3 class="feature-title">Anonymous Check-ins</h3>
+                            <p class="feature-description">
+                                Team members can safely share their mood and stress levels without fear of judgment. 
+                                Complete privacy protection ensures honest feedback.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> 100% Anonymous submissions</li>
+                                <li><i class="fas fa-check"></i> Mood & stress tracking</li>
+                                <li><i class="fas fa-check"></i> Optional notes & feedback</li>
+                            </ul>
+                            <a href="/checkin" class="feature-link">
+                                Submit Check-in <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="feature-card slide-up" style="animation-delay: 0.2s;">
+                            <div class="feature-icon dashboard">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <h3 class="feature-title">Real-time Analytics</h3>
+                            <p class="feature-description">
+                                Beautiful dashboards provide instant insights into team wellness trends, 
+                                participation rates, and potential areas of concern.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> Live dashboard updates</li>
+                                <li><i class="fas fa-check"></i> Historical trend analysis</li>
+                                <li><i class="fas fa-check"></i> Interactive visualizations</li>
+                            </ul>
+                            <a href="/dashboard" class="feature-link">
+                                View Dashboard <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="feature-card slide-up" style="animation-delay: 0.3s;">
+                            <div class="feature-icon teams">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h3 class="feature-title">Burnout Prevention</h3>
+                            <p class="feature-description">
+                                Smart algorithms detect early warning signs of team burnout and provide 
+                                actionable recommendations to maintain healthy workplace dynamics.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> Early warning alerts</li>
+                                <li><i class="fas fa-check"></i> Proactive recommendations</li>
+                                <li><i class="fas fa-check"></i> Intervention strategies</li>
+                            </ul>
+                            <a href="/teams" class="feature-link">
+                                Manage Teams <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section">
+            <div class="container">
+                <div class="cta-content text-center">
+                    <div class="cta-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h2 class="cta-title">Ready to Transform Your Team's Wellness?</h2>
+                    <p class="cta-description">
+                        Join forward-thinking organizations using SereniTeam to build healthier, 
+                        more productive teams through data-driven wellness insights.
+                    </p>
+                    <div class="cta-actions">
+                        <a href="/checkin" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play"></i>
+                            Get Started Now
+                        </a>
+                        <a href="/dashboard" class="btn btn-outline btn-lg">
+                            <i class="fas fa-eye"></i>
+                            See Demo
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <style>
+        /* Root variables for consistency */
+        :root {
+            --st-primary-500: #667eea;
+            --st-primary-600: #764ba2;
+            --st-success-500: #10b981;
+        }
+
+        .hero-container {
+            position: relative;
+            min-height: 100vh;
+            overflow: hidden;
+            top: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        .hero-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .hero-gradient {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(ellipse at top left, rgba(255,255,255,0.1) 0%, transparent 50%);
+        }
+
+        .floating-elements {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+        }
+
+        .floating-element {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 20s infinite linear;
+        }
+
+        .element-1 {
+            width: 100px;
+            height: 100px;
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .element-2 {
+            width: 150px;
+            height: 150px;
+            top: 60%;
+            right: 10%;
+            animation-delay: -10s;
+        }
+
+        .element-3 {
+            width: 80px;
+            height: 80px;
+            top: 80%;
+            left: 70%;
+            animation-delay: -5s;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            color: white;
+            padding: 5rem 0 2rem;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .hero-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+        }
+
+        .text-gradient {
+            background: linear-gradient(45deg, #ffffff, #e0e9ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-description {
+            font-size: 1.25rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            max-width: 600px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.9);
+            color: #1f2937;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            color: #1f2937;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            color: white;
+        }
+
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1.125rem;
+            border-radius: 12px;
+        }
+
+        .hero-stats {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            padding: 1.5rem 0;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            opacity: 0.8;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .dashboard-preview {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transform: perspective(1000px) rotateY(-5deg) rotateX(5deg);
+            transition: transform 0.5s ease;
+        }
+
+        .dashboard-preview:hover {
+            transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+        }
+
+        .preview-header {
+            padding: 1rem 1.5rem;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .preview-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot.red { background: #ef4444; }
+        .dot.yellow { background: #f59e0b; }
+        .dot.green { background: #10b981; }
+
+        .preview-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .preview-content {
+            padding: 1.5rem;
+            color: #374151;
+        }
+
+        .metric-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .mini-card {
+            text-align: center;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .card-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .card-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .chart-preview {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-header h4 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            position: relative;
+            padding-left: 1rem;
+        }
+
+        .legend-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .legend-item.mood::before {
+            background: #48bb78;
+        }
+
+        .legend-item.stress::before {
+            background: #ed8936;
+        }
+
+        .trend-chart {
+            width: 100%;
+            height: 80px;
+        }
+
+        .mood-line {
+            stroke-dasharray: 300;
+            stroke-dashoffset: 300;
+            animation: drawLine 2s ease-out forwards;
+        }
+
+        .stress-line {
+            stroke-dasharray: 300;
+            stroke-dashoffset: 300;
+            animation: drawLine 2s ease-out 0.5s forwards;
+        }
+
+        .features-section {
+            padding: 6rem 0;
+            background: #f8fafc;
+        }
+
+        .section-header {
+            margin-bottom: 4rem;
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+        }
+
+        .section-description {
+            font-size: 1.25rem;
+            color: #6b7280;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e5e7eb;
+            height: 100%;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--st-primary-500), var(--st-primary-600));
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-icon.checkin {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .feature-icon.dashboard {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+
+        .feature-icon.teams {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+        }
+
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 1rem;
+        }
+
+        .feature-description {
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 2rem;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .feature-list i {
+            color: var(--st-success-500);
+            font-size: 0.75rem;
+        }
+
+        .feature-link {
+            color: var(--st-primary-500);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-link:hover {
+            color: var(--st-primary-600);
+            transform: translateX(4px);
+        }
+
+        .cta-section {
+            padding: 6rem 0;
+            background: linear-gradient(135deg, #1f2937, #374151);
+            color: white;
+            text-align: center;
+        }
+
+        .cta-icon {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .cta-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .cta-description {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            line-height: 1.6;
+        }
+
+        .cta-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Animations */
+        @@keyframes float {
+            0%, 100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(180deg);
+            }
+        }
+
+        @@keyframes drawLine {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 1s ease-out;
+        }
+
+        .slide-up {
+            animation: slideUp 0.8s ease-out;
+        }
+
+        @@keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @@keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive Design */
+        @@media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .hero-content {
+                padding: 4rem 0 2rem;
+            }
+            
+            .hero-actions {
+                flex-direction: column;
+            }
+
+            .hero-stats {
+                flex-wrap: wrap;
+                gap: 1rem;
+                justify-content: center;
+            }
+
+            .dashboard-preview {
+                transform: none;
+                margin-top: 2rem;
+            }
+
+            .metric-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .feature-card {
+                padding: 1.5rem;
+            }
+
+            .cta-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn-lg {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</body>
+</html>

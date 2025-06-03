@@ -1,4 +1,5 @@
 ﻿@page "/checkin"
+@layout AppLayout
 @using SereniTeam.Shared.DTOs
 @using SereniTeam.Client.Services
 @inject ITeamApiService TeamService
@@ -7,131 +8,601 @@
 
 <PageTitle>Submit Check-in - SereniTeam</PageTitle>
 
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="mb-0">🌟 How are you feeling today?</h3>
-                    <small class="text-muted">Your responses are completely anonymous</small>
+<div class="checkin-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-xl-6">
+                
+                <!-- Header Section -->
+                <div class="checkin-header text-center mb-5">
+                    <div class="checkin-icon">
+                        <i class="fas fa-heart-pulse"></i>
+                    </div>
+                    <h1 class="checkin-title">How are you feeling today?</h1>
+                    <p class="checkin-subtitle">
+                        Your responses are completely anonymous and help us understand team wellbeing patterns.
+                        Take a moment to reflect on your current state.
+                    </p>
                 </div>
-                <div class="card-body">
-                    @if (teams == null)
-                    {
-                        <div class="text-center">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
+
+                @if (teams == null)
+                {
+                    <!-- Loading State -->
+                    <div class="loading-container">
+                        <div class="loading-spinner-modern"></div>
+                        <p class="loading-text">Loading teams...</p>
+                    </div>
+                }
+                else if (!teams.Any())
+                {
+                    <!-- Empty State -->
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <i class="fas fa-users-slash"></i>
                         </div>
-                    }
-                    else if (!teams.Any())
-                    {
-                        <div class="alert alert-warning">
-                            <h5>No teams available</h5>
-                            <p>Please contact your administrator to set up teams.</p>
-                        </div>
-                    }
-                    else
-                    {
-                        <EditForm Model="checkInModel" OnValidSubmit="SubmitCheckIn">
+                        <h3>No Teams Available</h3>
+                        <p>Please contact your administrator to set up teams before submitting check-ins.</p>
+                        <a href="/" class="btn btn-primary-modern">
+                            <i class="fas fa-home"></i>
+                            Return Home
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <!-- Check-in Form -->
+                    <div class="checkin-form-card">
+                        <EditForm Model="checkInModel" OnValidSubmit="SubmitCheckIn" class="checkin-form">
                             <DataAnnotationsValidator />
                             
-                            <div class="mb-3">
-                                <label class="form-label">Select Your Team</label>
-                                <select class="form-select" @bind="checkInModel.TeamId" required>
-                                    <option value="0">Choose your team...</option>
+                            <!-- Progress Indicator -->
+                            <div class="form-progress">
+                                <div class="progress-step @(selectedStep >= 1 ? "active" : "")">
+                                    <div class="step-circle">1</div>
+                                    <span>Team</span>
+                                </div>
+                                <div class="progress-line @(selectedStep >= 2 ? "active" : "")"></div>
+                                <div class="progress-step @(selectedStep >= 2 ? "active" : "")">
+                                    <div class="step-circle">2</div>
+                                    <span>Mood</span>
+                                </div>
+                                <div class="progress-line @(selectedStep >= 3 ? "active" : "")"></div>
+                                <div class="progress-step @(selectedStep >= 3 ? "active" : "")">
+                                    <div class="step-circle">3</div>
+                                    <span>Stress</span>
+                                </div>
+                                <div class="progress-line @(selectedStep >= 4 ? "active" : "")"></div>
+                                <div class="progress-step @(selectedStep >= 4 ? "active" : "")">
+                                    <div class="step-circle">4</div>
+                                    <span>Notes</span>
+                                </div>
+                            </div>
+
+                            <!-- Step 1: Team Selection -->
+                            <div class="form-step @(selectedStep == 1 ? "active" : "")" id="step-1">
+                                <h3 class="step-title">
+                                    <i class="fas fa-users"></i>
+                                    Select Your Team
+                                </h3>
+                                
+                                <div class="team-grid">
                                     @foreach (var team in teams)
                                     {
-                                        <option value="@team.Id">@team.Name</option>
+                                        <div class="team-option @(checkInModel.TeamId == team.Id ? "selected" : "")"
+                                             @onclick="() => SelectTeam(team.Id)">
+                                            <div class="team-avatar">
+                                                @team.Name.Substring(0, 2).ToUpper()
+                                            </div>
+                                            <div class="team-info">
+                                                <h4>@team.Name</h4>
+                                                @if (!string.IsNullOrEmpty(team.Description))
+                                                {
+                                                    <p>@team.Description</p>
+                                                }
+                                            </div>
+                                            @if (checkInModel.TeamId == team.Id)
+                                            {
+                                                <i class="fas fa-check-circle team-check"></i>
+                                            }
+                                        </div>
                                     }
-                                </select>
-                                <ValidationMessage For="() => checkInModel.TeamId" />
+                                </div>
+                                <ValidationMessage For="() => checkInModel.TeamId" class="validation-message" />
                             </div>
 
-                            <div class="mb-4">
-                                <label class="form-label">Mood Rating (1 = Very Low, 10 = Excellent)</label>
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <input type="range" class="form-range" min="1" max="10" 
-                                               @bind="checkInModel.MoodRating" @bind:event="oninput" />
+                            <!-- Step 2: Mood Rating -->
+                            <div class="form-step @(selectedStep == 2 ? "active" : "")" id="step-2">
+                                <h3 class="step-title">
+                                    <i class="fas fa-smile"></i>
+                                    Rate Your Mood
+                                </h3>
+                                
+                                <div class="rating-container">
+                                    <div class="mood-scale">
+                                        @for (int i = 1; i <= 10; i++)
+                                        {
+                                            <div class="mood-option @(checkInModel.MoodRating == i ? "selected" : "")"
+                                                 @onclick="() => SetMoodRating(i)">
+                                                <span class="mood-emoji">@GetMoodEmoji(i)</span>
+                                                <span class="mood-number">@i</span>
+                                            </div>
+                                        }
                                     </div>
-                                    <div class="col-auto">
-                                        <span class="badge bg-primary fs-5">@checkInModel.MoodRating</span>
+                                    
+                                    <div class="rating-description">
+                                        <span class="description-text">@GetMoodDescription(checkInModel.MoodRating)</span>
                                     </div>
                                 </div>
-                                <div class="d-flex justify-content-between text-muted small">
-                                    <span>😔 Very Low</span>
-                                    <span>😐 Neutral</span>
-                                    <span>😊 Excellent</span>
-                                </div>
-                                <ValidationMessage For="() => checkInModel.MoodRating" />
+                                <ValidationMessage For="() => checkInModel.MoodRating" class="validation-message" />
                             </div>
 
-                            <div class="mb-4">
-                                <label class="form-label">Stress Level (1 = Very Low, 10 = Very High)</label>
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <input type="range" class="form-range" min="1" max="10" 
-                                               @bind="checkInModel.StressLevel" @bind:event="oninput" />
+                            <!-- Step 3: Stress Level -->
+                            <div class="form-step @(selectedStep == 3 ? "active" : "")" id="step-3">
+                                <h3 class="step-title">
+                                    <i class="fas fa-thermometer-half"></i>
+                                    Rate Your Stress Level
+                                </h3>
+                                
+                                <div class="rating-container">
+                                    <div class="stress-scale">
+                                        @for (int i = 1; i <= 10; i++)
+                                        {
+                                            <div class="stress-option @(checkInModel.StressLevel == i ? "selected" : "")"
+                                                 @onclick="() => SetStressLevel(i)">
+                                                <span class="stress-emoji">@GetStressEmoji(i)</span>
+                                                <span class="stress-number">@i</span>
+                                            </div>
+                                        }
                                     </div>
-                                    <div class="col-auto">
-                                        <span class="badge bg-warning fs-5">@checkInModel.StressLevel</span>
+                                    
+                                    <div class="rating-description">
+                                        <span class="description-text">@GetStressDescription(checkInModel.StressLevel)</span>
                                     </div>
                                 </div>
-                                <div class="d-flex justify-content-between text-muted small">
-                                    <span>😌 Very Calm</span>
-                                    <span>😐 Moderate</span>
-                                    <span>😰 Very Stressed</span>
-                                </div>
-                                <ValidationMessage For="() => checkInModel.StressLevel" />
+                                <ValidationMessage For="() => checkInModel.StressLevel" class="validation-message" />
                             </div>
 
-                            <div class="mb-4">
-                                <label class="form-label">Additional Notes (Optional)</label>
-                                <textarea class="form-control" @bind="checkInModel.Notes" 
-                                          placeholder="Any additional thoughts or comments..." 
-                                          rows="3" maxlength="500"></textarea>
-                                <div class="form-text">
-                                    @(checkInModel.Notes?.Length ?? 0)/500 characters
+                            <!-- Step 4: Notes -->
+                            <div class="form-step @(selectedStep == 4 ? "active" : "")" id="step-4">
+                                <h3 class="step-title">
+                                    <i class="fas fa-comment-dots"></i>
+                                    Additional Thoughts (Optional)
+                                </h3>
+                                
+                                <div class="notes-container">
+                                    <textarea class="form-control-modern notes-input" 
+                                              @bind="checkInModel.Notes" 
+                                              placeholder="Share any thoughts, concerns, or positive moments from your day..."
+                                              rows="4" 
+                                              maxlength="500"></textarea>
+                                    
+                                    <div class="character-count">
+                                        <span class="@(GetCharacterCountClass())">
+                                            @(checkInModel.Notes?.Length ?? 0)/500 characters
+                                        </span>
+                                    </div>
                                 </div>
-                                <ValidationMessage For="() => checkInModel.Notes" />
+                                <ValidationMessage For="() => checkInModel.Notes" class="validation-message" />
                             </div>
 
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg" disabled="@isSubmitting">
-                                    @if (isSubmitting)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-2"></span>
-                                        <span>Submitting...</span>
-                                    }
-                                    else
-                                    {
-                                        <span>Submit Check-in</span>
-                                    }
-                                </button>
+                            <!-- Navigation Buttons -->
+                            <div class="form-navigation">
+                                @if (selectedStep > 1)
+                                {
+                                    <button type="button" class="btn btn-outline-modern" @onclick="PreviousStep">
+                                        <i class="fas fa-arrow-left"></i>
+                                        Previous
+                                    </button>
+                                }
+                                
+                                @if (selectedStep < 4)
+                                {
+                                    <button type="button" class="btn btn-primary-modern ml-auto" 
+                                            @onclick="NextStep" disabled="@(!CanProceedToNextStep())">
+                                        Next
+                                        <i class="fas fa-arrow-right"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="submit" class="btn btn-success-modern ml-auto" 
+                                            disabled="@(isSubmitting || !IsFormValid())">
+                                        @if (isSubmitting)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            <span>Submitting...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-heart"></i>
+                                            <span>Submit Check-in</span>
+                                        }
+                                    </button>
+                                }
                             </div>
                         </EditForm>
-                    }
-                </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
 </div>
 
+<!-- Success/Error Toast -->
 @if (!string.IsNullOrEmpty(message))
 {
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div class="toast show" role="alert">
-            <div class="toast-header">
-                <strong class="me-auto">@(isSuccess ? "Success" : "Error")</strong>
-                <button type="button" class="btn-close" @onclick="ClearMessage"></button>
-            </div>
-            <div class="toast-body">
-                @message
-            </div>
+    <div class="toast-notification @(isSuccess ? "success" : "error") @(showToast ? "show" : "")">
+        <div class="toast-icon">
+            <i class="fas @(isSuccess ? "fa-check-circle" : "fa-exclamation-circle")"></i>
         </div>
+        <div class="toast-content">
+            <h4>@(isSuccess ? "Success!" : "Error")</h4>
+            <p>@message</p>
+        </div>
+        <button class="toast-close" @onclick="ClearMessage">
+            <i class="fas fa-times"></i>
+        </button>
     </div>
 }
+
+<style>
+    .checkin-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem 0;
+    }
+
+    .checkin-header {
+        color: white;
+        margin-bottom: 3rem;
+    }
+
+    .checkin-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 2rem;
+        color: white;
+        backdrop-filter: blur(10px);
+    }
+
+    .checkin-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .checkin-subtitle {
+        font-size: 1.125rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.6;
+    }
+
+    .checkin-form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        backdrop-filter: blur(10px);
+    }
+
+    .form-progress {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 3rem;
+    }
+
+    .progress-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        opacity: 0.5;
+        transition: opacity 0.3s ease;
+    }
+
+    .progress-step.active {
+        opacity: 1;
+    }
+
+    .step-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .progress-step.active .step-circle {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .progress-line {
+        width: 60px;
+        height: 2px;
+        background: #e2e8f0;
+        margin: 0 1rem;
+        transition: background 0.3s ease;
+    }
+
+    .progress-line.active {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+    }
+
+    .form-step {
+        display: none;
+        animation: fadeInUp 0.5s ease-out;
+    }
+
+    .form-step.active {
+        display: block;
+    }
+
+    .step-title {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .team-grid {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .team-option {
+        display: flex;
+        align-items: center;
+        padding: 1.5rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .team-option:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+    }
+
+    .team-option.selected {
+        border-color: #667eea;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    }
+
+    .team-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        margin-right: 1rem;
+    }
+
+    .team-check {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        color: #28a745;
+        font-size: 1.25rem;
+    }
+
+    .rating-container {
+        text-align: center;
+    }
+
+    .mood-scale, .stress-scale {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .mood-option, .stress-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 60px;
+    }
+
+    .mood-option:hover, .stress-option:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .mood-option.selected {
+        border-color: #28a745;
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(72, 219, 251, 0.1));
+    }
+
+    .stress-option.selected {
+        border-color: #ffc107;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 107, 107, 0.1));
+    }
+
+    .mood-emoji, .stress-emoji {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .rating-description {
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .description-text {
+        font-size: 1.125rem;
+        font-weight: 500;
+        color: #4a5568;
+    }
+
+    .notes-container {
+        position: relative;
+    }
+
+    .notes-input {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1rem;
+        resize: vertical;
+        transition: border-color 0.3s ease;
+    }
+
+    .notes-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .character-count {
+        text-align: right;
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .character-count-normal {
+        color: #718096;
+    }
+
+    .character-count-warning {
+        color: #d69e2e;
+    }
+
+    .character-count-danger {
+        color: #e53e3e;
+    }
+
+    .form-navigation {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .ml-auto {
+        margin-left: auto;
+    }
+
+    .toast-notification {
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        max-width: 400px;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+    }
+
+    .toast-notification.show {
+        transform: translateX(0);
+    }
+
+    .toast-notification.success {
+        border-left: 4px solid #28a745;
+    }
+
+    .toast-notification.error {
+        border-left: 4px solid #dc3545;
+    }
+
+    .toast-icon {
+        font-size: 1.5rem;
+    }
+
+    .toast-notification.success .toast-icon {
+        color: #28a745;
+    }
+
+    .toast-notification.error .toast-icon {
+        color: #dc3545;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        font-size: 1rem;
+        color: #718096;
+        cursor: pointer;
+        margin-left: auto;
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .checkin-form-card {
+            padding: 1.5rem;
+        }
+
+        .mood-scale, .stress-scale {
+            gap: 0.5rem;
+        }
+
+        .mood-option, .stress-option {
+            min-width: 50px;
+            padding: 0.75rem;
+        }
+
+        .form-progress {
+            margin-bottom: 2rem;
+        }
+
+        .progress-line {
+            width: 40px;
+        }
+    }
+</style>
 
 @code {
     private List<TeamDto> teams = new();
@@ -139,31 +610,151 @@
     private bool isSubmitting = false;
     private string message = string.Empty;
     private bool isSuccess = false;
+    private bool showToast = false;
+    private int selectedStep = 1;
 
     protected override async Task OnInitializedAsync()
     {
         teams = await TeamService.GetAllTeamsAsync();
     }
 
+    private void SelectTeam(int teamId)
+    {
+        checkInModel.TeamId = teamId;
+        StateHasChanged();
+    }
+
+    private void SetMoodRating(int rating)
+    {
+        checkInModel.MoodRating = rating;
+        StateHasChanged();
+    }
+
+    private void SetStressLevel(int level)
+    {
+        checkInModel.StressLevel = level;
+        StateHasChanged();
+    }
+
+    private void NextStep()
+    {
+        if (CanProceedToNextStep() && selectedStep < 4)
+        {
+            selectedStep++;
+            StateHasChanged();
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (selectedStep > 1)
+        {
+            selectedStep--;
+            StateHasChanged();
+        }
+    }
+
+    private bool CanProceedToNextStep()
+    {
+        return selectedStep switch
+        {
+            1 => checkInModel.TeamId > 0,
+            2 => checkInModel.MoodRating > 0,
+            3 => checkInModel.StressLevel > 0,
+            _ => true
+        };
+    }
+
+    private bool IsFormValid()
+    {
+        return checkInModel.TeamId > 0 && 
+               checkInModel.MoodRating > 0 && 
+               checkInModel.StressLevel > 0;
+    }
+
+    private string GetMoodEmoji(int rating)
+    {
+        return rating switch
+        {
+            1 => "😢", 2 => "😞", 3 => "😕", 4 => "😐", 5 => "😑",
+            6 => "🙂", 7 => "😊", 8 => "😄", 9 => "😁", 10 => "🤩",
+            _ => "😐"
+        };
+    }
+
+    private string GetStressEmoji(int level)
+    {
+        return level switch
+        {
+            1 => "😌", 2 => "😊", 3 => "🙂", 4 => "😐", 5 => "😕",
+            6 => "😟", 7 => "😰", 8 => "😨", 9 => "😱", 10 => "🤯",
+            _ => "😐"
+        };
+    }
+
+    private string GetMoodDescription(int rating)
+    {
+        return rating switch
+        {
+            1 => "Very Low - Feeling really down today",
+            2 => "Low - Not feeling great",
+            3 => "Below Average - Having some difficulties",
+            4 => "Slightly Low - Could be better",
+            5 => "Neutral - Feeling okay",
+            6 => "Good - Generally positive",
+            7 => "Very Good - Feeling quite happy",
+            8 => "Great - Having a really good day",
+            9 => "Excellent - Feeling fantastic",
+            10 => "Outstanding - Absolutely amazing!",
+            _ => "How are you feeling today?"
+        };
+    }
+
+    private string GetStressDescription(int level)
+    {
+        return level switch
+        {
+            1 => "Very Calm - Completely relaxed",
+            2 => "Calm - Feeling peaceful",
+            3 => "Relaxed - Generally at ease",
+            4 => "Slightly Tense - Minor pressure",
+            5 => "Moderate - Some stress present",
+            6 => "Tense - Noticeable pressure",
+            7 => "Stressed - Feeling overwhelmed",
+            8 => "Very Stressed - High pressure",
+            9 => "Extremely Stressed - Near breaking point",
+            10 => "Overwhelmed - Unable to cope",
+            _ => "What's your stress level today?"
+        };
+    }
+
+    private string GetCharacterCountClass()
+    {
+        var length = checkInModel.Notes?.Length ?? 0;
+        return length switch
+        {
+            > 450 => "character-count-danger",
+            > 350 => "character-count-warning",
+            _ => "character-count-normal"
+        };
+    }
+
     private async Task SubmitCheckIn()
     {
-        if (checkInModel.TeamId == 0)
-        {
-            ShowMessage("Please select your team.", false);
-            return;
-        }
+        if (!IsFormValid()) return;
 
         isSubmitting = true;
         var success = await CheckInService.SubmitCheckInAsync(checkInModel);
         
         if (success)
         {
-            ShowMessage("Thank you! Your check-in has been submitted anonymously.", true);
+            ShowMessage("Thank you! Your check-in has been submitted anonymously and will help improve team wellbeing.", true);
             ResetForm();
+            selectedStep = 1;
         }
         else
         {
-            ShowMessage("Failed to submit check-in. Please try again.", false);
+            ShowMessage("Failed to submit check-in. Please try again or contact support if the problem persists.", false);
         }
         
         isSubmitting = false;
@@ -174,19 +765,28 @@
         checkInModel = new CheckInSubmissionDto { MoodRating = 5, StressLevel = 5 };
     }
 
-    private void ShowMessage(string msg, bool success)
+    private async void ShowMessage(string msg, bool success)
     {
         message = msg;
         isSuccess = success;
+        showToast = true;
         StateHasChanged();
         
-        // Auto-hide message after 5 seconds
-        _ = Task.Delay(5000).ContinueWith(_ => ClearMessage());
+        await Task.Delay(100);
+        StateHasChanged();
+        
+        await Task.Delay(5000);
+        ClearMessage();
     }
 
     private void ClearMessage()
     {
-        message = string.Empty;
+        showToast = false;
         StateHasChanged();
+        
+        Task.Delay(300).ContinueWith(_ => {
+            message = string.Empty;
+            InvokeAsync(StateHasChanged);
+        });
     }
 }
