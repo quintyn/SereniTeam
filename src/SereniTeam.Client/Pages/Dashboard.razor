@@ -1,7 +1,9 @@
 ﻿@page "/dashboard"
+@layout AppLayout
 @using SereniTeam.Shared.DTOs
 @using SereniTeam.Client.Services
 @inject ITeamApiService TeamService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Dashboard - SereniTeam</PageTitle>
 
@@ -76,14 +78,39 @@
         @if (teams == null)
         {
             <!-- Loading State -->
-            <div class="loading-state">
-                <div class="loading-spinner-large"></div>
-                <h3>Loading dashboard data...</h3>
-                <p>Gathering team wellness insights</p>
-            </div>
-        }
-        else if (!teams.Any())
-        {
+    <div class="loading-state">
+        <div class="loading-spinner-large"></div>
+        <h3>Loading dashboard data...</h3>
+        <p>Gathering team wellness insights</p>
+    </div>
+}
+else if (hasError)
+{
+    <!-- Error State -->
+    <div class="error-state-dashboard">
+        <div class="error-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h2>Unable to Load Dashboard</h2>
+        <p>@errorMessage</p>
+        <div class="error-actions">
+            <button class="btn btn-primary-modern" @onclick="RefreshData">
+                <i class="fas fa-retry"></i>
+                Try Again
+            </button>
+            <button class="btn btn-outline-modern" @onclick="ReloadPage">
+                <i class="fas fa-refresh"></i>
+                Reload Page
+            </button>
+        </div>
+        <details class="error-details">
+            <summary>Technical Details</summary>
+            <p>Check the browser console (F12) for more detailed error information.</p>
+        </details>
+    </div>
+}
+else if (!teams.Any())
+{
             <!-- Empty State -->
             <div class="empty-state-dashboard">
                 <div class="empty-icon">
@@ -452,9 +479,16 @@
 </div>
 
 <style>
+    body, .page, main {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
     .dashboard-container {
+        width: 100% !important;
+        min-height: calc(100vh - 80px) !important;
+        overflow-y: auto !important;
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        min-height: 100vh;
         padding: 1rem 0;
     }
 
@@ -1263,6 +1297,55 @@
         .action-content {
             text-align: center;
         }
+
+
+    }
+
+    .error-state-dashboard {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 2px solid #fed7d7;
+        margin: 2rem 0;
+    }
+
+    .error-icon {
+        font-size: 4rem;
+        color: #e53e3e;
+        margin-bottom: 1rem;
+    }
+
+    .error-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .error-details {
+        margin-top: 2rem;
+        text-align: left;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .error-details summary {
+        cursor: pointer;
+        color: #667eea;
+        font-weight: 500;
+    }
+
+    .error-details p {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f7fafc;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.875rem;
     }
 </style>
 
@@ -1273,68 +1356,141 @@
     private int selectedTeamId = 0;
     private int selectedDays = 30;
     private bool isRefreshing = false;
+    
+    // Add these new error handling variables
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadTeamsAndSummaries();
+        try
+        {
+            await LoadTeamsAndSummaries();
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"Failed to load dashboard: {ex.Message}";
+            await JSRuntime.InvokeVoidAsync("console.error", "Dashboard error:", ex.ToString());
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadTeamsAndSummaries()
     {
-        teams = await TeamService.GetAllTeamsAsync();
-        
-        foreach (var team in teams)
+        try
         {
-            var summary = await TeamService.GetTeamSummaryAsync(team.Id, selectedDays);
-            if (summary != null)
+            await JSRuntime.InvokeVoidAsync("console.log", "Loading teams...");
+            teams = await TeamService.GetAllTeamsAsync();
+            await JSRuntime.InvokeVoidAsync("console.log", $"Loaded {teams.Count} teams");
+            
+            foreach (var team in teams)
             {
-                teamSummaries[team.Id] = summary;
+                try
+                {
+                    var summary = await TeamService.GetTeamSummaryAsync(team.Id, selectedDays);
+                    if (summary != null)
+                    {
+                        teamSummaries[team.Id] = summary;
+                        await JSRuntime.InvokeVoidAsync("console.log", $"Loaded summary for team {team.Name}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await JSRuntime.InvokeVoidAsync("console.warn", $"Failed to load summary for team {team.Name}: {ex.Message}");
+                }
+            }
+            
+            if (teams.Any() && selectedTeamId == 0)
+            {
+                selectedTeamId = teams.First().Id;
+                await LoadTeamData();
             }
         }
-        
-        if (teams.Any() && selectedTeamId == 0)
+        catch (Exception ex)
         {
-            selectedTeamId = teams.First().Id;
-            await LoadTeamData();
+            await JSRuntime.InvokeVoidAsync("console.error", "Error in LoadTeamsAndSummaries:", ex.ToString());
+            throw; // Re-throw so the parent catch block handles it
         }
     }
 
     private async Task SelectTeam(int teamId)
     {
-        selectedTeamId = teamId;
-        await LoadTeamData();
+        try
+        {
+            selectedTeamId = teamId;
+            await LoadTeamData();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "Error selecting team:", ex.ToString());
+        }
     }
 
     private async Task LoadTeamData()
     {
         if (selectedTeamId == 0) return;
-        teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, selectedDays);
+        
+        try
+        {
+            teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, selectedDays);
+            await JSRuntime.InvokeVoidAsync("console.log", "Team data loaded successfully");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "Error loading team data:", ex.ToString());
+            teamSummary = null;
+        }
     }
 
     private async Task RefreshData()
     {
-        isRefreshing = true;
-        StateHasChanged();
-        
-        await LoadTeamsAndSummaries();
-        if (selectedTeamId > 0)
+        try
         {
-            await LoadTeamData();
+            isRefreshing = true;
+            StateHasChanged();
+            
+            await LoadTeamsAndSummaries();
+            if (selectedTeamId > 0)
+            {
+                await LoadTeamData();
+            }
         }
-        
-        isRefreshing = false;
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "Error refreshing data:", ex.ToString());
+            hasError = true;
+            errorMessage = $"Failed to refresh data: {ex.Message}";
+        }
+        finally
+        {
+            isRefreshing = false;
+            StateHasChanged();
+        }
     }
 
     private async Task OnTimeRangeChanged(ChangeEventArgs e)
     {
-        if (int.TryParse(e.Value?.ToString(), out int days))
+        try
         {
-            selectedDays = days;
-            await RefreshData();
+            if (int.TryParse(e.Value?.ToString(), out int days))
+            {
+                selectedDays = days;
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "Error changing time range:", ex.ToString());
         }
     }
 
+    // Keep all your existing helper methods exactly as they are...
     private string GetTrendClass(double good, double bad)
     {
         if (good > bad) return "trend-positive";
@@ -1346,7 +1502,6 @@
     {
         if (summary.TotalCheckIns == 0) return "N/A";
         
-        // Simple wellness score calculation: mood - stress, normalized to 0-10
         var rawScore = summary.AverageMood - (summary.AverageStress * 0.5);
         var normalizedScore = Math.Max(0, Math.Min(10, rawScore));
         return normalizedScore.ToString("F1");
@@ -1374,8 +1529,6 @@
     {
         if (teamSummary == null || teamSummary.TotalCheckIns == 0) return 0;
         
-        // Mock distribution based on average mood
-        // In a real implementation, you'd calculate this from actual check-in data
         var avgMood = teamSummary.AverageMood;
         
         return category switch
@@ -1483,4 +1636,8 @@
         public string Priority { get; set; } = "";
         public string ButtonText { get; set; } = "";
     }
+    private async Task ReloadPage()
+{
+    await JSRuntime.InvokeVoidAsync("window.location.reload");
+}
 }
