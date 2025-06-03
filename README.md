@@ -5,7 +5,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org/)
 [![SignalR](https://img.shields.io/badge/SignalR-Real--time-FF6B6B?style=flat-square)](https://docs.microsoft.com/en-us/aspnet/signalr/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/yourusername/SereniTeam)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/quintyn/SereniTeam)
 
 SereniTeam is a **real-time wellness dashboard** for remote teams, built with Blazor WebAssembly and ASP.NET Core. It collects anonymous check-ins, visualizes team sentiment trends, and alerts leads to potential burnout - all while preserving privacy.
 
