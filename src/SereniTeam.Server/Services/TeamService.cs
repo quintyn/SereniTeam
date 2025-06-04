@@ -112,8 +112,8 @@ public class TeamService : ITeamService
             .OrderBy(t => t.Date)
             .ToList();
 
-        // Determine burnout risk
-        var isBurnoutRisk = await CalculateBurnoutRisk(teamId, checkIns);
+        // Determine burnout risk (removed await since method is now synchronous)
+        var isBurnoutRisk = CalculateBurnoutRisk(teamId, checkIns);
 
         return new TeamSummaryDto
         {
@@ -163,7 +163,8 @@ public class TeamService : ITeamService
                 .Where(c => c.TeamId == team.Id && c.SubmittedAt >= DateTime.UtcNow.AddDays(-14))
                 .ToListAsync();
 
-            if (await CalculateBurnoutRisk(team.Id, recentCheckIns))
+            // Removed await since method is now synchronous
+            if (CalculateBurnoutRisk(team.Id, recentCheckIns))
             {
                 var severity = DetermineBurnoutSeverity(recentCheckIns);
 
@@ -183,8 +184,9 @@ public class TeamService : ITeamService
 
     /// <summary>
     /// Calculates if a team is at burnout risk based on configured thresholds
+    /// FIXED: Removed async/await since this method doesn't perform any async operations
     /// </summary>
-    private async Task<bool> CalculateBurnoutRisk(int teamId, List<CheckIn> checkIns)
+    private bool CalculateBurnoutRisk(int teamId, List<CheckIn> checkIns)
     {
         if (!checkIns.Any())
             return false;

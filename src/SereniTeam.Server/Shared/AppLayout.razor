@@ -1,0 +1,138 @@
+﻿@inherits LayoutComponentBase
+
+<!-- Top Navigation Bar -->
+<nav class="top-nav">
+    <div class="nav-content">
+        <a href="/" class="nav-brand">
+            <i class="fas fa-heart-pulse"></i>
+            SereniTeam
+        </a>
+        <div class="nav-links">
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/teams" class="nav-link">Teams</a>
+            <a href="/checkin" class="nav-cta">Start Check-in</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="app-main">
+    @Body
+</main>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+<style>
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100% !important;
+        overflow-x: hidden !important;
+    }
+    
+    .top-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        z-index: 1001;
+        padding: 1rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .nav-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+    
+    .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        text-decoration: none;
+    }
+    
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+    }
+    
+    .nav-link {
+        color: #6b7280;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s ease;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+    }
+    
+    .nav-link:hover {
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+    }
+    
+    .nav-cta {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.3s ease;
+    }
+    
+    .nav-cta:hover {
+        transform: translateY(-2px);
+        color: white;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .app-main {
+        padding-top: 80px; /* Space for fixed nav */
+        min-height: 100vh;
+    }
+
+    #blazor-error-ui {
+        background: lightyellow;
+        bottom: 0;
+        box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+        display: none;
+        left: 0;
+        padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+        position: fixed;
+        width: 100%;
+        z-index: 1000;
+    }
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }
+
+    @@media (max-width: 768px) {
+        .nav-links {
+            display: none;
+        }
+        
+        .nav-content {
+            padding: 0 1rem;
+        }
+    }
+</style>

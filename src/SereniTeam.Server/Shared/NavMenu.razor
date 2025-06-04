@@ -1,0 +1,426 @@
+<div class="nav-header">
+    <div class="nav-brand">
+        <div class="brand-icon">
+            <i class="fas fa-heart-pulse"></i>
+        </div>
+        <div class="brand-info">
+            <h3>SereniTeam</h3>
+            <p>Wellness Dashboard</p>
+        </div>
+    </div>
+    
+    <button title="Navigation menu" class="navbar-toggler d-md-none" @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="CollapseNavMenu">
+    <nav class="nav-menu">
+        <div class="nav-section">
+            <div class="nav-section-title">
+                <i class="fas fa-tachometer-alt"></i>
+                Dashboard
+            </div>
+            
+            <div class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <div class="nav-link-content">
+                        <i class="fas fa-home"></i>
+                        <span>Home</span>
+                    </div>
+                </NavLink>
+            </div>
+            
+            <div class="nav-item">
+                <NavLink class="nav-link" href="dashboard">
+                    <div class="nav-link-content">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Analytics</span>
+                    </div>
+                    <div class="nav-badge">
+                        <span class="badge bg-info">Live</span>
+                    </div>
+                </NavLink>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">
+                <i class="fas fa-users"></i>
+                Team Tools
+            </div>
+            
+            <div class="nav-item">
+                <NavLink class="nav-link" href="checkin">
+                    <div class="nav-link-content">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Submit Check-in</span>
+                    </div>
+                </NavLink>
+            </div>
+            
+            <div class="nav-item">
+                <NavLink class="nav-link" href="teams">
+                    <div class="nav-link-content">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Manage Teams</span>
+                    </div>
+                </NavLink>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">
+                <i class="fas fa-cog"></i>
+                Settings
+            </div>
+            
+            <div class="nav-item">
+                <NavLink class="nav-link" href="settings">
+                    <div class="nav-link-content">
+                        <i class="fas fa-sliders-h"></i>
+                        <span>Preferences</span>
+                    </div>
+                </NavLink>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Wellness Status Widget -->
+    <div class="wellness-widget">
+        <div class="widget-header">
+            <i class="fas fa-heart-pulse"></i>
+            <span>Team Pulse</span>
+        </div>
+        <div class="widget-content">
+            <div class="pulse-indicator healthy">
+                <div class="pulse-dot"></div>
+                <span>All systems healthy</span>
+            </div>
+            <div class="quick-stats">
+                <div class="stat">
+                    <span class="stat-value">92%</span>
+                    <span class="stat-label">Participation</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">7.2</span>
+                    <span class="stat-label">Avg Mood</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void CollapseNavMenu()
+    {
+        collapseNavMenu = true;
+    }
+}
+
+<style>
+    .nav-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: white;
+    }
+
+    .brand-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .brand-info h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .brand-info p {
+        margin: 0;
+        font-size: 0.875rem;
+        opacity: 0.8;
+    }
+
+    .navbar-toggler {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 0.5rem;
+        color: white;
+    }
+
+    .navbar-toggler-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: block;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    }
+
+    .nav-scrollable {
+        height: calc(100vh - 120px);
+        overflow-y: auto;
+        padding: 1rem 0;
+    }
+
+    .nav-menu {
+        padding: 0 1rem;
+    }
+
+    .nav-section {
+        margin-bottom: 2rem;
+    }
+
+    .nav-section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.75rem;
+        padding: 0 0.5rem;
+    }
+
+    .nav-item {
+        margin-bottom: 0.25rem;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .nav-link::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.1);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .nav-link:hover::before {
+        opacity: 1;
+    }
+
+    .nav-link:hover {
+        color: white;
+        transform: translateX(4px);
+    }
+
+    .nav-link.active {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .nav-link.active::before {
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), transparent);
+        opacity: 1;
+    }
+
+    .nav-link-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+
+    .nav-link-content i {
+        width: 1.25rem;
+        text-align: center;
+    }
+
+    .nav-badge {
+        z-index: 1;
+    }
+
+    .badge {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.625rem;
+        font-weight: 600;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .bg-info {
+        background: #17a2b8 !important;
+        color: white;
+    }
+
+    .wellness-widget {
+        margin: 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 1rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .widget-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: white;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .pulse-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background: #48bb78;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .pulse-indicator span {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.75rem;
+    }
+
+    .quick-stats {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+    }
+
+    .stat-value {
+        color: white;
+        font-weight: 700;
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    .stat-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.625rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 0.25rem;
+    }
+
+    /* Scrollbar Styling */
+    .nav-scrollable::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .nav-scrollable::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+    }
+
+    .nav-scrollable::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+    }
+
+    .nav-scrollable::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    @@keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(72, 187, 120, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
+        }
+    }
+
+    /* Mobile Responsive */
+    @@media (max-width: 768px) {
+        .collapse {
+            display: none;
+        }
+
+        .navbar-toggler {
+            display: block;
+        }
+
+        .nav-scrollable {
+            height: auto;
+            max-height: calc(100vh - 120px);
+        }
+
+        .brand-info h3 {
+            font-size: 1.125rem;
+        }
+
+        .brand-info p {
+            font-size: 0.75rem;
+        }
+
+        .wellness-widget {
+            margin: 0.5rem;
+            padding: 0.75rem;
+        }
+    }
+
+    @@media (min-width: 769px) {
+        .navbar-toggler {
+            display: none;
+        }
+
+        .collapse {
+            display: block;
+        }
+    }
+</style>

@@ -2,17 +2,47 @@ using Microsoft.EntityFrameworkCore;
 using SereniTeam.Server.Data;
 using SereniTeam.Server.Services;
 using SereniTeam.Server.Hubs;
+using SereniTeam.Client.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
-builder.Services.AddControllersWithViews();
-builder.Services.AddRazorPages();
+Console.WriteLine("=== SereniTeam Starting (Blazor Server Mode) ===");
+Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
+Console.WriteLine($"Content Root: {builder.Environment.ContentRootPath}");
+Console.WriteLine($"Web Root: {builder.Environment.WebRootPath}");
 
-// Configure Entity Framework with PostgreSQL
+// Add services for Blazor Server (not WebAssembly)
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor(options =>
+{
+    // Configure SignalR for Blazor Server
+    options.DetailedErrors = builder.Environment.IsDevelopment();
+    options.DisconnectedCircuitMaxRetained = 100;
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+    options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
+});
+
+// Add API controllers for Swagger/API access
+builder.Services.AddControllers();
+
+// Configure Entity Framework with PostgreSQL - FIXED for Azure
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    ?? builder.Configuration["ConnectionStrings:DefaultConnection"]  // Azure format
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")  // Azure env var format
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL");
+
+if (string.IsNullOrEmpty(connectionString))
+{
+    Console.WriteLine("WARNING: No database connection string found. App will start but database features will be limited.");
+    // Use a default connection string that won't work but allows startup
+    connectionString = "Host=localhost;Database=dummy;Username=dummy;Password=dummy";
+}
+
+// Log connection attempt (hide password for security)
+var logConnectionString = connectionString.Contains("Password=")
+    ? connectionString.Substring(0, connectionString.IndexOf("Password=")) + "Password=***"
+    : connectionString;
+Console.WriteLine($"Using connection string: {logConnectionString}");
 
 // Handle Render.com or Heroku DATABASE_URL format
 if (connectionString.StartsWith("postgres://"))
@@ -21,71 +51,229 @@ if (connectionString.StartsWith("postgres://"))
 }
 
 builder.Services.AddDbContext<SereniTeamContext>(options =>
-    options.UseNpgsql(connectionString));
-
-// Register application services
-builder.Services.AddScoped<ICheckInService, CheckInService>();
-builder.Services.AddScoped<ITeamService, TeamService>();
-
-// Add SignalR for real-time updates
-builder.Services.AddSignalR();
-
-// Add CORS for development
-builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowBlazorWasm", policy =>
+    options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        // Add retry logic for Azure
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null);
     });
 });
 
+// Register application services (business logic)
+builder.Services.AddScoped<ICheckInService, CheckInService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+
+// Register the Blazor Server API services (these replace HTTP calls)
+// These implement the same interfaces as the WebAssembly versions but call services directly
+builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, SereniTeam.Server.Services.TeamApiService>();
+builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService, SereniTeam.Server.Services.CheckInApiService>();
+
+// Add SignalR for real-time updates
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 32 * 1024; // 32KB
+    options.StreamBufferCapacity = 10;
+});
+
+// Add Health checks
+builder.Services.AddHealthChecks();
+
 // Add Swagger for API documentation
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "SereniTeam API", Version = "v1" });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+Console.WriteLine("=== Configuring Middleware Pipeline (Blazor Server) ===");
+
+// Configure the HTTP request pipeline - SIMPLER for Blazor Server
 if (app.Environment.IsDevelopment())
 {
-    app.UseWebAssemblyDebugging();
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    Console.WriteLine("Development mode");
+    app.UseDeveloperExceptionPage();
 }
 else
 {
+    Console.WriteLine("Production mode - using exception handler");
     app.UseExceptionHandler("/Error");
-    app.UseHsts();
+    // Don't use HSTS in Azure App Service (proxy handles SSL)
 }
 
-app.UseBlazorFrameworkFiles();
+// Always enable Swagger for demo purposes
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "SereniTeam API v1");
+    c.RoutePrefix = "swagger"; // Access at /swagger
+});
+
+// Static files (much simpler for Blazor Server - no _framework directory needed)
+Console.WriteLine("Setting up static file serving (Blazor Server mode)...");
 app.UseStaticFiles();
 
-// app.UseHttpsRedirection(); 
-
-// Enable CORS
-app.UseCors("AllowBlazorWasm");
-
-// Routing comes AFTER static files
+// Routing middleware
 app.UseRouting();
 
-// Map endpoints
-app.MapRazorPages();
+Console.WriteLine("Mapping endpoints...");
+
+// Health check endpoints
+app.MapHealthChecks("/health");
+app.MapGet("/health/simple", () => Results.Ok(new
+{
+    status = "healthy",
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName,
+    mode = "Blazor Server"
+}));
+
+// Debug endpoint to check file system
+app.MapGet("/debug/files", () =>
+{
+    try
+    {
+        var webRootPath = app.Environment.WebRootPath ?? "wwwroot";
+        var contentRootPath = app.Environment.ContentRootPath;
+
+        var files = new
+        {
+            Mode = "Blazor Server",
+            ContentRootPath = contentRootPath,
+            WebRootPath = webRootPath,
+            WebRootExists = Directory.Exists(webRootPath),
+            WebRootFiles = Directory.Exists(webRootPath)
+                ? Directory.GetFiles(webRootPath).Select(Path.GetFileName).ToArray()
+                : new string[0],
+            Note = "Blazor Server doesn't need _framework directory"
+        };
+
+        return Results.Ok(files);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error checking files: {ex.Message}");
+    }
+});
+
+// Database health check (with error handling)
+app.MapGet("/health/db", async (SereniTeamContext context) =>
+{
+    try
+    {
+        var canConnect = await context.Database.CanConnectAsync();
+        if (canConnect)
+        {
+            var teamCount = await context.Teams.CountAsync();
+            var checkInCount = await context.CheckIns.CountAsync();
+            return Results.Ok(new
+            {
+                status = "healthy",
+                database = "connected",
+                teams = teamCount,
+                checkIns = checkInCount
+            });
+        }
+        return Results.Problem("Database connection failed");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Database error: {ex.Message}");
+    }
+});
+
+// API endpoints (keep these for API access)
 app.MapControllers();
+
+// SignalR hub
 app.MapHub<TeamUpdatesHub>("/teamupdates");
 
-// Fallback MUST be last
-app.MapFallbackToFile("index.html");
+// Blazor Server endpoints (these replace the WebAssembly fallback)
+app.MapBlazorHub("/blazorhub"); // SignalR hub for Blazor Server
+app.MapRazorPages(); // For _Host.cshtml
+app.MapFallbackToPage("/_Host"); // Host page for Blazor Server
 
-// Database setup...
-using var scope = app.Services.CreateScope();
-var context = scope.ServiceProvider.GetRequiredService<SereniTeamContext>();
-await context.Database.MigrateAsync();
-await SeedInitialData(context);
+Console.WriteLine("=== Endpoint mapping complete ===");
+
+// Database setup with improved error handling
+await SetupDatabase(app);
+
+Console.WriteLine("=== SereniTeam Ready (Blazor Server) ===");
+Console.WriteLine("Access points:");
+Console.WriteLine("- Main App: /");
+Console.WriteLine("- API Docs: /swagger");
+Console.WriteLine("- Health: /health");
+Console.WriteLine("- Database Health: /health/db");
+Console.WriteLine("- File Debug: /debug/files");
 
 await app.RunAsync();
+
+/// <summary>
+/// Database setup with comprehensive error handling
+/// </summary>
+static async Task SetupDatabase(WebApplication app)
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SereniTeamContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+        logger.LogInformation("Starting database setup...");
+
+        // Test connection first
+        logger.LogInformation("Testing database connection...");
+        var canConnect = await context.Database.CanConnectAsync();
+        if (!canConnect)
+        {
+            logger.LogWarning("Cannot connect to database - continuing without database features");
+            return;
+        }
+        logger.LogInformation("Database connection successful");
+
+        // Apply migrations
+        logger.LogInformation("Checking for pending migrations...");
+        var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+        if (pendingMigrations.Any())
+        {
+            logger.LogInformation("Found {Count} pending migrations: {Migrations}",
+                pendingMigrations.Count(), string.Join(", ", pendingMigrations));
+            await context.Database.MigrateAsync();
+            logger.LogInformation("Migrations applied successfully");
+        }
+        else
+        {
+            logger.LogInformation("No pending migrations found");
+        }
+
+        // Seed initial data
+        logger.LogInformation("Checking for seed data...");
+        await SeedDemoData(context, logger);
+
+        logger.LogInformation("Database setup completed successfully");
+    }
+    catch (Exception ex)
+    {
+        var logger = LoggerFactory.Create(config => config.AddConsole()).CreateLogger<Program>();
+        logger.LogError(ex, "Database setup failed: {Message}", ex.Message);
+
+        // In production, log the error but continue startup
+        if (app.Environment.IsDevelopment())
+        {
+            Console.WriteLine($"Database setup failed in development: {ex}");
+            // Continue anyway for demo purposes
+        }
+        else
+        {
+            logger.LogWarning("Continuing startup despite database setup failure...");
+        }
+    }
+}
 
 /// <summary>
 /// Converts postgres:// URL format to connection string format
@@ -99,31 +287,83 @@ static string ConvertPostgresUrl(string databaseUrl)
 }
 
 /// <summary>
-/// Seeds initial development data
+/// Seeds demo data for the application
 /// </summary>
-static async Task SeedInitialData(SereniTeamContext context)
+static async Task SeedDemoData(SereniTeamContext context, ILogger logger)
 {
-    if (await context.Teams.AnyAsync())
-        return; // Data already exists
-
-    var teams = new[]
+    try
     {
-        new SereniTeam.Shared.Models.Team
+        if (await context.Teams.AnyAsync())
         {
-            Name = "Development Team",
-            Description = "Software development team working on core products",
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
-        },
-        new SereniTeam.Shared.Models.Team
-        {
-            Name = "Marketing Team",
-            Description = "Marketing and communications team",
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
+            logger.LogInformation("Teams already exist, skipping seed data");
+            return;
         }
-    };
 
-    context.Teams.AddRange(teams);
-    await context.SaveChangesAsync();
+        logger.LogInformation("Creating demo teams...");
+
+        var teams = new[]
+        {
+            new SereniTeam.Shared.Models.Team
+            {
+                Name = "Development Team",
+                Description = "Software development team working on core products",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            },
+            new SereniTeam.Shared.Models.Team
+            {
+                Name = "Marketing Team",
+                Description = "Marketing and communications team",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            },
+            new SereniTeam.Shared.Models.Team
+            {
+                Name = "Design Team",
+                Description = "UI/UX design and creative team",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            }
+        };
+
+        context.Teams.AddRange(teams);
+        await context.SaveChangesAsync();
+
+        logger.LogInformation("Successfully created {Count} demo teams", teams.Length);
+
+        // Add some demo check-ins for demonstration
+        var checkIns = new List<SereniTeam.Shared.Models.CheckIn>();
+        var random = new Random();
+
+        foreach (var team in teams)
+        {
+            // Add some random check-ins for the past week
+            for (int day = 0; day < 7; day++)
+            {
+                for (int checkin = 0; checkin < random.Next(1, 4); checkin++)
+                {
+                    checkIns.Add(new SereniTeam.Shared.Models.CheckIn
+                    {
+                        TeamId = team.Id,
+                        MoodRating = random.Next(4, 9), // Generally positive mood
+                        StressLevel = random.Next(2, 7), // Moderate stress
+                        Notes = day == 0 ? "Demo check-in data" : null,
+                        SubmittedAt = DateTime.UtcNow.AddDays(-day).AddHours(-random.Next(0, 8))
+                    });
+                }
+            }
+        }
+
+        if (checkIns.Any())
+        {
+            context.CheckIns.AddRange(checkIns);
+            await context.SaveChangesAsync();
+            logger.LogInformation("Created {Count} demo check-ins", checkIns.Count);
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to seed demo data: {Message}", ex.Message);
+        // Don't throw - continue without demo data
+    }
 }

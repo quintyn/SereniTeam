@@ -1,0 +1,9 @@
+@page "/"
+@namespace SereniTeam.Server.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using SereniTeam.Client
+@{
+    Layout = "_Layout";
+}
+
+<component type="typeof(SereniTeam.Client.App)" render-mode="ServerPrerendered" />
