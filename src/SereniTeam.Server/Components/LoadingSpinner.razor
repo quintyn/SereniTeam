@@ -1,0 +1,232 @@
+@* Shared/Components/LoadingSpinner.razor *@
+
+<div class="loading-spinner-container @ContainerClass">
+    <div class="spinner-wrapper">
+        <div class="spinner @SpinnerClass" role="status" aria-label="Loading">
+            <div class="spinner-border @SizeClass" style="@ColorStyle">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+        
+        @if (!string.IsNullOrEmpty(Message))
+        {
+            <div class="spinner-message @MessageClass">
+                @Message
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(SubMessage))
+        {
+            <div class="spinner-submessage">
+                @SubMessage
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Size of the spinner: sm, md, lg, xl
+    /// </summary>
+    [Parameter] public string Size { get; set; } = "md";
+    
+    /// <summary>
+    /// Color of the spinner: primary, secondary, success, warning, danger, info
+    /// </summary>
+    [Parameter] public string Color { get; set; } = "primary";
+    
+    /// <summary>
+    /// Loading message to display
+    /// </summary>
+    [Parameter] public string? Message { get; set; }
+    
+    /// <summary>
+    /// Sub-message to display below main message
+    /// </summary>
+    [Parameter] public string? SubMessage { get; set; }
+    
+    /// <summary>
+    /// Additional CSS classes for the container
+    /// </summary>
+    [Parameter] public string? ContainerClass { get; set; }
+    
+    /// <summary>
+    /// Centers the spinner in its container
+    /// </summary>
+    [Parameter] public bool Centered { get; set; } = false;
+    
+    /// <summary>
+    /// Shows overlay background
+    /// </summary>
+    [Parameter] public bool Overlay { get; set; } = false;
+
+    private string SpinnerClass => Centered ? "spinner-centered" : "";
+    private string SizeClass => Size switch
+    {
+        "sm" => "spinner-border-sm",
+        "lg" => "spinner-border-lg",
+        "xl" => "spinner-border-xl",
+        _ => ""
+    };
+    
+    private string MessageClass => Size switch
+    {
+        "sm" => "message-sm",
+        "lg" => "message-lg",
+        "xl" => "message-xl",
+        _ => ""
+    };
+    
+    private string ColorStyle => Color switch
+    {
+        "primary" => "border-top-color: #667eea;",
+        "secondary" => "border-top-color: #6b7280;",
+        "success" => "border-top-color: #10b981;",
+        "warning" => "border-top-color: #f59e0b;",
+        "danger" => "border-top-color: #ef4444;",
+        "info" => "border-top-color: #3b82f6;",
+        _ => "border-top-color: #667eea;"
+    };
+}
+
+<style>
+    .loading-spinner-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .loading-spinner-container.overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 1000;
+        backdrop-filter: blur(2px);
+    }
+
+    .spinner-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .spinner {
+        display: inline-block;
+    }
+
+    .spinner-centered {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .spinner-border {
+        display: inline-block;
+        width: 2rem;
+        height: 2rem;
+        vertical-align: text-bottom;
+        border: 0.25em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+        border-color: #e5e7eb;
+    }
+
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 0.2em;
+    }
+
+    .spinner-border-lg {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3em;
+    }
+
+    .spinner-border-xl {
+        width: 4rem;
+        height: 4rem;
+        border-width: 0.35em;
+    }
+
+    .spinner-message {
+        font-weight: 500;
+        color: #374151;
+        text-align: center;
+        margin: 0;
+    }
+
+    .spinner-message.message-sm {
+        font-size: 0.875rem;
+    }
+
+    .spinner-message.message-lg {
+        font-size: 1.125rem;
+    }
+
+    .spinner-message.message-xl {
+        font-size: 1.25rem;
+    }
+
+    .spinner-submessage {
+        font-size: 0.875rem;
+        color: #6b7280;
+        text-align: center;
+        margin: 0;
+        margin-top: -0.5rem;
+    }
+
+    @@keyframes spinner-border {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Pulse animation variant */
+    .spinner-pulse {
+        animation: spinner-pulse 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes spinner-pulse {
+        0% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.1);
+        }
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Responsive adjustments */
+    @@media (max-width: 768px) {
+        .spinner-border-lg {
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .spinner-border-xl {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .spinner-message {
+            font-size: 0.875rem;
+        }
+
+        .spinner-submessage {
+            font-size: 0.75rem;
+        }
+    }
+</style>

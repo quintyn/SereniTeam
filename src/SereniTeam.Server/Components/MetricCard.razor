@@ -1,0 +1,447 @@
+@* Shared/Components/MetricCard.razor *@
+
+<div class="metric-card @Type @AdditionalClass" @onclick="OnClick">
+    <div class="metric-header">
+        <div class="metric-icon @Type">
+            <i class="fas @Icon"></i>
+        </div>
+        
+        @if (!string.IsNullOrEmpty(Badge))
+        {
+            <div class="metric-badge @BadgeType">
+                @Badge
+            </div>
+        }
+        
+        @if (ShowMenu)
+        {
+            <div class="metric-menu">
+                <button class="btn-icon" @onclick:stopPropagation="true" @onclick="ToggleMenu">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+                @if (menuVisible)
+                {
+                    <div class="dropdown-menu">
+                        @MenuContent
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    
+    <div class="metric-content">
+        <div class="metric-value">@Value</div>
+        <div class="metric-label">@Label</div>
+        
+        @if (!string.IsNullOrEmpty(Description))
+        {
+            <div class="metric-description">@Description</div>
+        }
+        
+        @if (ShowRange && MaxValue.HasValue)
+        {
+            <div class="metric-range">
+                <div class="range-bar">
+                    <div class="range-fill @Type" style="width: @GetRangePercentage()%"></div>
+                </div>
+                <div class="range-labels">
+                    <span>0</span>
+                    <span>@MaxValue</span>
+                </div>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(Trend))
+        {
+            <div class="metric-trend @TrendDirection">
+                <i class="fas @GetTrendIcon()"></i>
+                <span>@Trend</span>
+            </div>
+        }
+        
+        @if (SubMetrics != null && SubMetrics.Any())
+        {
+            <div class="sub-metrics">
+                @foreach (var subMetric in SubMetrics)
+                {
+                    <div class="sub-metric">
+                        <span class="sub-value">@subMetric.Value</span>
+                        <span class="sub-label">@subMetric.Label</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    
+    @if (ChildContent != null)
+    {
+        <div class="metric-footer">
+            @ChildContent
+        </div>
+    }
+    
+    @if (Loading)
+    {
+        <div class="metric-loading">
+            <LoadingSpinner Size="sm" Color="@Type" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Type { get; set; } = "primary"; // primary, success, warning, danger, info
+    [Parameter] public string Icon { get; set; } = "fa-chart-bar";
+    [Parameter] public string Value { get; set; } = "0";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? Badge { get; set; }
+    [Parameter] public string BadgeType { get; set; } = "info";
+    [Parameter] public string? Trend { get; set; }
+    [Parameter] public string TrendDirection { get; set; } = "neutral"; // positive, negative, neutral
+    [Parameter] public bool ShowRange { get; set; } = false;
+    [Parameter] public double? MaxValue { get; set; }
+    [Parameter] public double? CurrentValue { get; set; }
+    [Parameter] public List<SubMetric>? SubMetrics { get; set; }
+    [Parameter] public bool Loading { get; set; } = false;
+    [Parameter] public bool ShowMenu { get; set; } = false;
+    [Parameter] public RenderFragment? MenuContent { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? AdditionalClass { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private bool menuVisible = false;
+
+    private void ToggleMenu()
+    {
+        menuVisible = !menuVisible;
+    }
+
+    private string GetRangePercentage()
+    {
+        if (!CurrentValue.HasValue || !MaxValue.HasValue || MaxValue.Value == 0)
+            return "0";
+        
+        var percentage = (CurrentValue.Value / MaxValue.Value) * 100;
+        return Math.Min(100, Math.Max(0, percentage)).ToString("F0");
+    }
+
+    private string GetTrendIcon()
+    {
+        return TrendDirection switch
+        {
+            "positive" => "fa-arrow-up",
+            "negative" => "fa-arrow-down",
+            _ => "fa-minus"
+        };
+    }
+
+    public class SubMetric
+    {
+        public string Value { get; set; } = "";
+        public string Label { get; set; } = "";
+    }
+}
+
+<style>
+    .metric-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e5e7eb;
+        transition: all 0.3s ease;
+        position: relative;
+        cursor: pointer;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .metric-card.primary {
+        border-left: 4px solid #667eea;
+    }
+
+    .metric-card.success {
+        border-left: 4px solid #10b981;
+    }
+
+    .metric-card.warning {
+        border-left: 4px solid #f59e0b;
+    }
+
+    .metric-card.danger {
+        border-left: 4px solid #ef4444;
+    }
+
+    .metric-card.info {
+        border-left: 4px solid #3b82f6;
+    }
+
+    .metric-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .metric-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .metric-icon.primary {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+    }
+
+    .metric-icon.success {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .metric-icon.warning {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .metric-icon.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .metric-icon.info {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    }
+
+    .metric-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .metric-badge.info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .metric-badge.success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .metric-badge.warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .metric-badge.danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .metric-menu {
+        position: relative;
+    }
+
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: none;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-icon:hover {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        min-width: 160px;
+        z-index: 1000;
+        padding: 0.5rem 0;
+    }
+
+    .metric-content {
+        position: relative;
+    }
+
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-label {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+    }
+
+    .metric-description {
+        font-size: 0.875rem;
+        color: #9ca3af;
+        margin-bottom: 1rem;
+        line-height: 1.4;
+    }
+
+    .metric-range {
+        margin-bottom: 1rem;
+    }
+
+    .range-bar {
+        width: 100%;
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .range-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .range-fill.primary {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+    }
+
+    .range-fill.success {
+        background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .range-fill.warning {
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+
+    .range-fill.danger {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+
+    .range-fill.info {
+        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    }
+
+    .range-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .metric-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+
+    .metric-trend.positive {
+        color: #059669;
+    }
+
+    .metric-trend.negative {
+        color: #dc2626;
+    }
+
+    .metric-trend.neutral {
+        color: #6b7280;
+    }
+
+    .sub-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f3f4f6;
+    }
+
+    .sub-metric {
+        text-align: center;
+    }
+
+    .sub-value {
+        display: block;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+
+    .sub-label {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .metric-footer {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f3f4f6;
+    }
+
+    .metric-loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 16px;
+        backdrop-filter: blur(2px);
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .metric-card {
+            padding: 1rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+        }
+
+        .metric-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 1.25rem;
+        }
+
+        .sub-metrics {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
