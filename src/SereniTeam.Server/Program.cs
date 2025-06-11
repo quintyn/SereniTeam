@@ -66,10 +66,21 @@ builder.Services.AddDbContext<SereniTeamContext>(options =>
 builder.Services.AddScoped<ICheckInService, CheckInService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 
-// Register the Blazor Server API services (these replace HTTP calls)
+// FIXED: Register the Blazor Server API services (these replace HTTP calls)
 // These implement the same interfaces as the WebAssembly versions but call services directly
-builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, SereniTeam.Server.Services.TeamApiService>();
-builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService, SereniTeam.Server.Services.CheckInApiService>();
+builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService>(provider =>
+{
+    var teamService = provider.GetRequiredService<ITeamService>();
+    var logger = provider.GetRequiredService<ILogger<ServerSideTeamApiService>>();
+    return new ServerSideTeamApiService(teamService, logger);
+});
+
+builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService>(provider =>
+{
+    var checkInService = provider.GetRequiredService<ICheckInService>();
+    var logger = provider.GetRequiredService<ILogger<ServerSideCheckInApiService>>();
+    return new ServerSideCheckInApiService(checkInService, logger);
+});
 
 // Add SignalR for real-time updates
 builder.Services.AddSignalR(options =>
@@ -365,5 +376,134 @@ static async Task SeedDemoData(SereniTeamContext context, ILogger logger)
     {
         logger.LogError(ex, "Failed to seed demo data: {Message}", ex.Message);
         // Don't throw - continue without demo data
+    }
+}
+
+// Server-side API service implementations for Blazor Server
+/// <summary>
+/// Server-side implementation of ITeamApiService for Blazor Server mode
+/// This replaces HTTP calls with direct service calls
+/// </summary>
+public class ServerSideTeamApiService : SereniTeam.Client.Services.ITeamApiService
+{
+    private readonly ITeamService _teamService;
+    private readonly ILogger<ServerSideTeamApiService> _logger;
+
+    public ServerSideTeamApiService(ITeamService teamService, ILogger<ServerSideTeamApiService> logger)
+    {
+        _teamService = teamService;
+        _logger = logger;
+    }
+
+    public async Task<List<SereniTeam.Shared.DTOs.TeamDto>> GetAllTeamsAsync()
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting all teams");
+            var result = await _teamService.GetAllTeamsAsync();
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved {Count} teams", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting all teams");
+            throw;
+        }
+    }
+
+    public async Task<SereniTeam.Shared.DTOs.TeamDto?> GetTeamByIdAsync(int id)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting team {TeamId}", id);
+            var result = await _teamService.GetTeamByIdAsync(id);
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved team {TeamId}: {Found}", id, result != null);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting team {TeamId}", id);
+            throw;
+        }
+    }
+
+    public async Task<SereniTeam.Shared.DTOs.TeamSummaryDto?> GetTeamSummaryAsync(int id, int daysBack = 30)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting team summary for {TeamId}, {DaysBack} days", id, daysBack);
+            var result = await _teamService.GetTeamSummaryAsync(id, daysBack);
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved team summary for {TeamId}: {Found}", id, result != null);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting team summary for {TeamId}", id);
+            throw;
+        }
+    }
+
+    public async Task<int> CreateTeamAsync(SereniTeam.Shared.DTOs.CreateTeamDto team)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Creating team {TeamName}", team.Name);
+            var result = await _teamService.CreateTeamAsync(team);
+            _logger.LogDebug("ServerSideTeamApiService: Created team {TeamName} with ID {TeamId}", team.Name, result);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error creating team {TeamName}", team.Name);
+            throw;
+        }
+    }
+
+    public async Task<List<SereniTeam.Shared.DTOs.BurnoutAlertDto>> GetBurnoutAlertsAsync()
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting burnout alerts");
+            var result = await _teamService.GetBurnoutAlertsAsync();
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved {Count} burnout alerts", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting burnout alerts");
+            throw;
+        }
+    }
+}
+
+/// <summary>
+/// Server-side implementation of ICheckInApiService for Blazor Server mode
+/// This replaces HTTP calls with direct service calls
+/// </summary>
+public class ServerSideCheckInApiService : SereniTeam.Client.Services.ICheckInApiService
+{
+    private readonly ICheckInService _checkInService;
+    private readonly ILogger<ServerSideCheckInApiService> _logger;
+
+    public ServerSideCheckInApiService(ICheckInService checkInService, ILogger<ServerSideCheckInApiService> logger)
+    {
+        _checkInService = checkInService;
+        _logger = logger;
+    }
+
+    public async Task<bool> SubmitCheckInAsync(SereniTeam.Shared.DTOs.CheckInSubmissionDto checkIn)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideCheckInApiService: Submitting check-in for team {TeamId}", checkIn.TeamId);
+            var result = await _checkInService.SubmitCheckInAsync(checkIn);
+            _logger.LogDebug("ServerSideCheckInApiService: Check-in submission result: {Success}", result);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideCheckInApiService: Error submitting check-in for team {TeamId}", checkIn.TeamId);
+            return false;
+        }
     }
 }
