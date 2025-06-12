@@ -1,7 +1,7 @@
 namespace SereniTeam.Shared.DTOs;
 
 /// <summary>
-/// DTO for team information
+/// DTO for basic team information
 /// </summary>
 public class TeamDto
 {

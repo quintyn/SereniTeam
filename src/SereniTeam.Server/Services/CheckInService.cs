@@ -2,73 +2,68 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using SereniTeam.Server.Data;
 using SereniTeam.Server.Hubs;
-using SereniTeam.Shared.Models;
 using SereniTeam.Shared.DTOs;
+using SereniTeam.Shared.Models;
 
 namespace SereniTeam.Server.Services;
 
-/// <summary>
-/// Service for handling check-in operations
-/// </summary>
 public class CheckInService : ICheckInService
 {
-    private readonly SereniTeamContext _context;
-    private readonly IHubContext<TeamUpdatesHub> _hubContext;
+    private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
     private readonly ILogger<CheckInService> _logger;
+    private readonly IHubContext<TeamUpdatesHub> _hubContext;
 
     public CheckInService(
-        SereniTeamContext context,
-        IHubContext<TeamUpdatesHub> hubContext,
-        ILogger<CheckInService> logger)
+        IDbContextFactory<SereniTeamContext> contextFactory,
+        ILogger<CheckInService> logger,
+        IHubContext<TeamUpdatesHub> hubContext)
     {
-        _context = context;
-        _hubContext = hubContext;
+        _contextFactory = contextFactory;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
-    /// <summary>
-    /// Submits a new anonymous check-in and broadcasts real-time update
-    /// </summary>
     public async Task<bool> SubmitCheckInAsync(CheckInSubmissionDto checkInDto)
     {
         try
         {
+            using var context = _contextFactory.CreateDbContext();
+
             // Validate team exists
-            var teamExists = await _context.Teams
+            var teamExists = await context.Teams
                 .AnyAsync(t => t.Id == checkInDto.TeamId && t.IsActive);
 
             if (!teamExists)
             {
-                _logger.LogWarning("Attempted to submit check-in for non-existent or inactive team {TeamId}", checkInDto.TeamId);
+                _logger.LogWarning("Attempted to submit check-in for non-existent team {TeamId}", checkInDto.TeamId);
                 return false;
             }
 
-            // Create check-in entity
             var checkIn = new CheckIn
             {
                 TeamId = checkInDto.TeamId,
                 MoodRating = checkInDto.MoodRating,
                 StressLevel = checkInDto.StressLevel,
-                Notes = checkInDto.Notes?.Trim(),
+                Notes = checkInDto.Notes,
                 SubmittedAt = DateTime.UtcNow
             };
 
-            _context.CheckIns.Add(checkIn);
-            await _context.SaveChangesAsync();
+            context.CheckIns.Add(checkIn);
+            await context.SaveChangesAsync();
 
-            _logger.LogInformation("Check-in submitted for team {TeamId} - Mood: {Mood}, Stress: {Stress}",
-                checkInDto.TeamId, checkInDto.MoodRating, checkInDto.StressLevel);
-
-            // Broadcast real-time update to team dashboard
+            // Trigger SignalR notification
             await _hubContext.Clients.Group($"Team_{checkInDto.TeamId}")
-                .SendAsync("NewCheckInReceived", new
+                .SendAsync("NewCheckInReceived", new CheckInDto
                 {
-                    TeamId = checkInDto.TeamId,
-                    MoodRating = checkInDto.MoodRating,
-                    StressLevel = checkInDto.StressLevel,
+                    Id = checkIn.Id,
+                    TeamId = checkIn.TeamId,
+                    MoodRating = checkIn.MoodRating,
+                    StressLevel = checkIn.StressLevel,
+                    Notes = checkIn.Notes,
                     SubmittedAt = checkIn.SubmittedAt
                 });
 
+            _logger.LogInformation("Check-in submitted successfully for team {TeamId}", checkInDto.TeamId);
             return true;
         }
         catch (Exception ex)
@@ -78,20 +73,34 @@ public class CheckInService : ICheckInService
         }
     }
 
-    /// <summary>
-    /// Retrieves check-ins for a specific team
-    /// </summary>
-    public async Task<List<CheckIn>> GetTeamCheckInsAsync(int teamId, DateTime? fromDate = null)
+    public async Task<List<CheckInDto>> GetTeamCheckInsAsync(int teamId, int daysBack = 30)
     {
-        var query = _context.CheckIns.Where(c => c.TeamId == teamId);
-
-        if (fromDate.HasValue)
+        try
         {
-            query = query.Where(c => c.SubmittedAt >= fromDate.Value);
-        }
+            using var context = _contextFactory.CreateDbContext();
 
-        return await query
-            .OrderByDescending(c => c.SubmittedAt)
-            .ToListAsync();
+            var cutoffDate = DateTime.UtcNow.AddDays(-daysBack);
+            var checkIns = await context.CheckIns
+                .Where(c => c.TeamId == teamId && c.SubmittedAt >= cutoffDate)
+                .OrderByDescending(c => c.SubmittedAt)
+                .Select(c => new CheckInDto
+                {
+                    Id = c.Id,
+                    TeamId = c.TeamId,
+                    MoodRating = c.MoodRating,
+                    StressLevel = c.StressLevel,
+                    Notes = c.Notes,
+                    SubmittedAt = c.SubmittedAt
+                })
+                .ToListAsync();
+
+            _logger.LogDebug("Retrieved {Count} check-ins for team {TeamId}", checkIns.Count, teamId);
+            return checkIns;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving check-ins for team {TeamId}", teamId);
+            throw;
+        }
     }
 }
