@@ -3,6 +3,7 @@ using SereniTeam.Server.Data;
 using SereniTeam.Server.Services;
 using SereniTeam.Server.Hubs;
 using SereniTeam.Client.Services;
+using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -104,7 +105,6 @@ var app = builder.Build();
 
 Console.WriteLine("=== Configuring Middleware Pipeline (Blazor Server) ===");
 
-// Configure the HTTP request pipeline - SIMPLER for Blazor Server
 if (app.Environment.IsDevelopment())
 {
     Console.WriteLine("Development mode");
@@ -114,8 +114,25 @@ else
 {
     Console.WriteLine("Production mode - using exception handler");
     app.UseExceptionHandler("/Error");
-    // Don't use HSTS in Azure App Service (proxy handles SSL)
 }
+
+// Add detailed error endpoint to see what's failing
+app.Map("/Error", async (HttpContext context) =>
+{
+    var exceptionFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+    if (exceptionFeature?.Error != null)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(exceptionFeature.Error, "Unhandled exception on path: {Path}", exceptionFeature.Path);
+
+        return Results.Problem(
+            title: "An error occurred",
+            detail: app.Environment.IsDevelopment() ? exceptionFeature.Error.ToString() : "Internal server error",
+            statusCode: 500
+        );
+    }
+    return Results.Problem("Unknown error occurred");
+});
 
 // Always enable Swagger for demo purposes
 app.UseSwagger();
