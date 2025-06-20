@@ -11,7 +11,7 @@ namespace SereniTeam.Server.Services;
 /// Server-side implementation of ITeamApiService for Blazor Server mode
 /// This replaces HTTP calls with direct service calls - UPDATED for DbContextFactory
 /// </summary>
-public class ServerSideTeamApiService : SereniTeam.Client.Services.ITeamApiService
+public class ServerSideTeamApiService : ITeamApiService
 {
     private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
     private readonly ILogger<ServerSideTeamApiService> _logger;

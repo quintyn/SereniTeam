@@ -75,9 +75,7 @@ builder.Services.AddDbContextFactory<SereniTeamContext>(options =>
     }
 });
 
-// OPTION 1: Register the updated ServerSide API services directly with DbContextFactory
-// These replace both the business services and HTTP calls with direct database access
-builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService>(provider =>
+builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, ServerSideTeamApiService>(provider =>
 {
     var contextFactory = provider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
     var logger = provider.GetRequiredService<ILogger<ServerSideTeamApiService>>();
@@ -85,7 +83,7 @@ builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService>(provider 
     return new ServerSideTeamApiService(contextFactory, logger, hubContext);
 });
 
-builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService>(provider =>
+builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService, ServerSideCheckInApiService>(provider =>
 {
     var contextFactory = provider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
     var logger = provider.GetRequiredService<ILogger<ServerSideCheckInApiService>>();
@@ -644,7 +642,7 @@ public class ServerSideTeamApiService : SereniTeam.Client.Services.ITeamApiServi
 /// Server-side implementation of ICheckInApiService for Blazor Server mode
 /// This replaces HTTP calls with direct service calls - UPDATED for DbContextFactory
 /// </summary>
-public class ServerSideCheckInApiService : SereniTeam.Client.Services.ICheckInApiService
+public class ServerSideCheckInApiService : ICheckInApiService
 {
     private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
     private readonly ILogger<ServerSideCheckInApiService> _logger;

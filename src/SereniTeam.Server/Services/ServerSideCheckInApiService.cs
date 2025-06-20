@@ -4,6 +4,7 @@ using SereniTeam.Server.Data;
 using SereniTeam.Server.Hubs;
 using SereniTeam.Shared.DTOs;
 using SereniTeam.Shared.Models;
+using SereniTeam.Client.Services;
 
 namespace SereniTeam.Server.Services;
 
@@ -11,7 +12,7 @@ namespace SereniTeam.Server.Services;
 /// Server-side implementation of ICheckInApiService for Blazor Server mode
 /// This replaces HTTP calls with direct service calls - UPDATED for DbContextFactory
 /// </summary>
-public class ServerSideCheckInApiService : SereniTeam.Client.Services.ICheckInApiService
+public class ServerSideCheckInApiService : ICheckInApiService
 {
     private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
     private readonly ILogger<ServerSideCheckInApiService> _logger;
