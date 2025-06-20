@@ -12,40 +12,47 @@ using Xunit;
 
 namespace SereniTeam.Tests.Services;
 
-public class CheckInServiceTests : IDisposable
+public class ServerSideCheckInApiServiceTests : IDisposable
 {
-    private readonly SereniTeamContext _context;
-    private readonly Mock<ILogger<CheckInService>> _mockLogger;
+    private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
+    private readonly Mock<ILogger<ServerSideCheckInApiService>> _mockLogger;
     private readonly Mock<IHubContext<TeamUpdatesHub>> _mockHubContext;
-    private readonly CheckInService _checkInService;
+    private readonly ServerSideCheckInApiService _checkInService;
 
-    public CheckInServiceTests()
+    public ServerSideCheckInApiServiceTests()
     {
         var options = new DbContextOptionsBuilder<SereniTeamContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _context = new SereniTeamContext(options);
-        _mockLogger = new Mock<ILogger<CheckInService>>();
+        // Create a context factory for the in-memory database
+        var mockFactory = new Mock<IDbContextFactory<SereniTeamContext>>();
+        mockFactory.Setup(f => f.CreateDbContext()).Returns(() => new SereniTeamContext(options));
+        _contextFactory = mockFactory.Object;
 
-        // Mock SignalR hub context
+        _mockLogger = new Mock<ILogger<ServerSideCheckInApiService>>();
+
+        // Mock SignalR hub context - using the correct interface hierarchy
         _mockHubContext = new Mock<IHubContext<TeamUpdatesHub>>();
-        var mockClients = new Mock<IHubCallerClients>();
+        var mockHubClients = new Mock<IHubClients>();
+        var mockGroupManager = new Mock<IGroupManager>();
         var mockClientProxy = new Mock<IClientProxy>();
 
-        _mockHubContext.Setup(x => x.Clients).Returns(mockClients.Object);
-        mockClients.Setup(x => x.Group(It.IsAny<string>())).Returns(mockClientProxy.Object);
+        _mockHubContext.Setup(x => x.Clients).Returns(mockHubClients.Object);
+        _mockHubContext.Setup(x => x.Groups).Returns(mockGroupManager.Object);
+        mockHubClients.Setup(x => x.Group(It.IsAny<string>())).Returns(mockClientProxy.Object);
 
-        _checkInService = new CheckInService(_context, _mockHubContext.Object, _mockLogger.Object);
+        _checkInService = new ServerSideCheckInApiService(_contextFactory, _mockLogger.Object, _mockHubContext.Object);
     }
 
     [Fact]
     public async Task SubmitCheckInAsync_WithValidData_ReturnsTrue()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Test Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
-        await _context.SaveChangesAsync();
+        await context.Teams.AddAsync(team);
+        await context.SaveChangesAsync();
 
         var checkInDto = new CheckInSubmissionDto
         {
@@ -61,7 +68,7 @@ public class CheckInServiceTests : IDisposable
         // Assert
         result.Should().BeTrue();
 
-        var savedCheckIn = await _context.CheckIns.FirstOrDefaultAsync();
+        var savedCheckIn = await context.CheckIns.FirstOrDefaultAsync();
         savedCheckIn.Should().NotBeNull();
         savedCheckIn!.TeamId.Should().Be(1);
         savedCheckIn.MoodRating.Should().Be(7);
@@ -85,7 +92,9 @@ public class CheckInServiceTests : IDisposable
 
         // Assert
         result.Should().BeFalse();
-        var checkIns = await _context.CheckIns.ToListAsync();
+
+        using var context = _contextFactory.CreateDbContext();
+        var checkIns = await context.CheckIns.ToListAsync();
         checkIns.Should().BeEmpty();
     }
 
@@ -93,9 +102,10 @@ public class CheckInServiceTests : IDisposable
     public async Task SubmitCheckInAsync_CallsSignalRHub()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Test Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
-        await _context.SaveChangesAsync();
+        await context.Teams.AddAsync(team);
+        await context.SaveChangesAsync();
 
         var checkInDto = new CheckInSubmissionDto
         {
@@ -107,11 +117,11 @@ public class CheckInServiceTests : IDisposable
         // Act
         await _checkInService.SubmitCheckInAsync(checkInDto);
 
-        // Assert
+        // Assert - Verify SignalR hub was called
         _mockHubContext.Verify(
             x => x.Clients.Group("Team_1").SendAsync(
                 "NewCheckInReceived",
-                It.IsAny<object>(),
+                It.IsAny<CheckInDto>(),
                 default),
             Times.Once);
     }
@@ -120,9 +130,10 @@ public class CheckInServiceTests : IDisposable
     public async Task GetTeamCheckInsAsync_ReturnsCorrectCheckIns()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team1 = new Team { Id = 1, Name = "Team 1", IsActive = true, CreatedAt = DateTime.UtcNow };
         var team2 = new Team { Id = 2, Name = "Team 2", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddRangeAsync(team1, team2);
+        await context.Teams.AddRangeAsync(team1, team2);
 
         var checkIns = new[]
         {
@@ -130,8 +141,8 @@ public class CheckInServiceTests : IDisposable
             new CheckIn { TeamId = 1, MoodRating = 6, StressLevel = 5, SubmittedAt = DateTime.UtcNow.AddDays(-2) },
             new CheckIn { TeamId = 2, MoodRating = 7, StressLevel = 4, SubmittedAt = DateTime.UtcNow.AddDays(-1) }
         };
-        await _context.CheckIns.AddRangeAsync(checkIns);
-        await _context.SaveChangesAsync();
+        await context.CheckIns.AddRangeAsync(checkIns);
+        await context.SaveChangesAsync();
 
         // Act
         var result = await _checkInService.GetTeamCheckInsAsync(1);
@@ -145,22 +156,23 @@ public class CheckInServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTeamCheckInsAsync_WithDateFilter_ReturnsFilteredResults()
+    public async Task GetTeamCheckInsAsync_WithDaysFilter_ReturnsFilteredResults()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Test Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
+        await context.Teams.AddAsync(team);
 
         var checkIns = new[]
         {
             new CheckIn { TeamId = 1, MoodRating = 8, StressLevel = 3, SubmittedAt = DateTime.UtcNow.AddDays(-1) },
             new CheckIn { TeamId = 1, MoodRating = 6, StressLevel = 5, SubmittedAt = DateTime.UtcNow.AddDays(-10) }
         };
-        await _context.CheckIns.AddRangeAsync(checkIns);
-        await _context.SaveChangesAsync();
+        await context.CheckIns.AddRangeAsync(checkIns);
+        await context.SaveChangesAsync();
 
         // Act
-        var result = await _checkInService.GetTeamCheckInsAsync(1, DateTime.UtcNow.AddDays(-5));
+        var result = await _checkInService.GetTeamCheckInsAsync(1, 5); // Last 5 days
 
         // Assert
         result.Should().HaveCount(1);
@@ -169,6 +181,6 @@ public class CheckInServiceTests : IDisposable
 
     public void Dispose()
     {
-        _context.Dispose();
+        // Context disposal is handled by the factory
     }
 }

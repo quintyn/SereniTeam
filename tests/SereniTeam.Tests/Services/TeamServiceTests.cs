@@ -1,56 +1,61 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.SignalR;
 using Moq;
 using FluentAssertions;
 using SereniTeam.Server.Data;
 using SereniTeam.Server.Services;
+using SereniTeam.Server.Hubs;
 using SereniTeam.Shared.DTOs;
 using SereniTeam.Shared.Models;
 using Xunit;
 
 namespace SereniTeam.Tests.Services;
 
-public class TeamServiceTests : IDisposable
+public class ServerSideTeamApiServiceTests : IDisposable
 {
-    private readonly SereniTeamContext _context;
-    private readonly Mock<ILogger<TeamService>> _mockLogger;
-    private readonly Mock<IConfiguration> _mockConfiguration;
-    private readonly TeamService _teamService;
+    private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
+    private readonly Mock<ILogger<ServerSideTeamApiService>> _mockLogger;
+    private readonly Mock<IHubContext<TeamUpdatesHub>> _mockHubContext;
+    private readonly ServerSideTeamApiService _teamService;
 
-    public TeamServiceTests()
+    public ServerSideTeamApiServiceTests()
     {
         // Setup in-memory database
         var options = new DbContextOptionsBuilder<SereniTeamContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _context = new SereniTeamContext(options);
-        _mockLogger = new Mock<ILogger<TeamService>>();
-        _mockConfiguration = new Mock<IConfiguration>();
+        // Create a context factory for the in-memory database
+        var mockFactory = new Mock<IDbContextFactory<SereniTeamContext>>();
+        mockFactory.Setup(f => f.CreateDbContext()).Returns(() => new SereniTeamContext(options));
+        _contextFactory = mockFactory.Object;
 
-        // Setup default configuration values
-        _mockConfiguration.Setup(x => x.GetValue<double>("SereniTeam:BurnoutThresholds:LowMoodThreshold", 3.0))
-            .Returns(3.0);
-        _mockConfiguration.Setup(x => x.GetValue<double>("SereniTeam:BurnoutThresholds:HighStressThreshold", 7.0))
-            .Returns(7.0);
-        _mockConfiguration.Setup(x => x.GetValue<int>("SereniTeam:BurnoutThresholds:ConsecutiveDaysForAlert", 3))
-            .Returns(3);
-        _mockConfiguration.Setup(x => x.GetValue<int>("SereniTeam:BurnoutThresholds:MinimumCheckInsForAnalysis", 5))
-            .Returns(5);
+        _mockLogger = new Mock<ILogger<ServerSideTeamApiService>>();
 
-        _teamService = new TeamService(_context, _mockLogger.Object, _mockConfiguration.Object);
+        // Mock SignalR hub context - using the correct interface hierarchy
+        _mockHubContext = new Mock<IHubContext<TeamUpdatesHub>>();
+        var mockHubClients = new Mock<IHubClients>();
+        var mockGroupManager = new Mock<IGroupManager>();
+        var mockClientProxy = new Mock<IClientProxy>();
+
+        _mockHubContext.Setup(x => x.Clients).Returns(mockHubClients.Object);
+        _mockHubContext.Setup(x => x.Groups).Returns(mockGroupManager.Object);
+        mockHubClients.Setup(x => x.Group(It.IsAny<string>())).Returns(mockClientProxy.Object);
+
+        _teamService = new ServerSideTeamApiService(_contextFactory, _mockLogger.Object, _mockHubContext.Object);
     }
 
     [Fact]
     public async Task GetAllTeamsAsync_ReturnsActiveTeamsOnly()
     {
         // Arrange
-        await _context.Teams.AddRangeAsync(
+        using var context = _contextFactory.CreateDbContext();
+        await context.Teams.AddRangeAsync(
             new Team { Id = 1, Name = "Active Team", IsActive = true, CreatedAt = DateTime.UtcNow },
             new Team { Id = 2, Name = "Inactive Team", IsActive = false, CreatedAt = DateTime.UtcNow }
         );
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // Act
         var result = await _teamService.GetAllTeamsAsync();
@@ -77,7 +82,8 @@ public class TeamServiceTests : IDisposable
         // Assert
         result.Should().BeGreaterThan(0);
 
-        var createdTeam = await _context.Teams.FindAsync(result);
+        using var context = _contextFactory.CreateDbContext();
+        var createdTeam = await context.Teams.FindAsync(result);
         createdTeam.Should().NotBeNull();
         createdTeam!.Name.Should().Be("Test Team");
         createdTeam.Description.Should().Be("Test Description");
@@ -88,9 +94,10 @@ public class TeamServiceTests : IDisposable
     public async Task GetTeamSummaryAsync_WithNoCheckIns_ReturnsEmptySummary()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Empty Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
-        await _context.SaveChangesAsync();
+        await context.Teams.AddAsync(team);
+        await context.SaveChangesAsync();
 
         // Act
         var result = await _teamService.GetTeamSummaryAsync(1, 30);
@@ -109,8 +116,9 @@ public class TeamServiceTests : IDisposable
     public async Task GetTeamSummaryAsync_WithCheckIns_CalculatesCorrectAverages()
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Test Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
+        await context.Teams.AddAsync(team);
 
         var checkIns = new[]
         {
@@ -118,8 +126,8 @@ public class TeamServiceTests : IDisposable
             new CheckIn { TeamId = 1, MoodRating = 6, StressLevel = 5, SubmittedAt = DateTime.UtcNow.AddDays(-2) },
             new CheckIn { TeamId = 1, MoodRating = 7, StressLevel = 4, SubmittedAt = DateTime.UtcNow.AddDays(-3) }
         };
-        await _context.CheckIns.AddRangeAsync(checkIns);
-        await _context.SaveChangesAsync();
+        await context.CheckIns.AddRangeAsync(checkIns);
+        await context.SaveChangesAsync();
 
         // Act
         var result = await _teamService.GetTeamSummaryAsync(1, 30);
@@ -139,24 +147,25 @@ public class TeamServiceTests : IDisposable
     public async Task BurnoutRiskCalculation_WorksCorrectly(int moodRating, int stressLevel, bool expectedRisk)
     {
         // Arrange
+        using var context = _contextFactory.CreateDbContext();
         var team = new Team { Id = 1, Name = "Test Team", IsActive = true, CreatedAt = DateTime.UtcNow };
-        await _context.Teams.AddAsync(team);
+        await context.Teams.AddAsync(team);
 
-        // Add enough check-ins over consecutive days to trigger analysis
+        // Add enough check-ins to trigger analysis
         var checkIns = new List<CheckIn>();
-        for (int i = 0; i < 6; i++) // 6 check-ins over 3 days
+        for (int i = 0; i < 6; i++)
         {
             checkIns.Add(new CheckIn
             {
                 TeamId = 1,
                 MoodRating = moodRating,
                 StressLevel = stressLevel,
-                SubmittedAt = DateTime.UtcNow.AddDays(-i / 2) // 2 per day
+                SubmittedAt = DateTime.UtcNow.AddDays(-i)
             });
         }
 
-        await _context.CheckIns.AddRangeAsync(checkIns);
-        await _context.SaveChangesAsync();
+        await context.CheckIns.AddRangeAsync(checkIns);
+        await context.SaveChangesAsync();
 
         // Act
         var result = await _teamService.GetTeamSummaryAsync(1, 30);
@@ -166,8 +175,44 @@ public class TeamServiceTests : IDisposable
         result!.IsBurnoutRisk.Should().Be(expectedRisk);
     }
 
+    [Fact]
+    public async Task GetBurnoutAlertsAsync_ReturnsAlertsForAtRiskTeams()
+    {
+        // Arrange
+        using var context = _contextFactory.CreateDbContext();
+        var team1 = new Team { Id = 1, Name = "Healthy Team", IsActive = true, CreatedAt = DateTime.UtcNow };
+        var team2 = new Team { Id = 2, Name = "Stressed Team", IsActive = true, CreatedAt = DateTime.UtcNow };
+        await context.Teams.AddRangeAsync(team1, team2);
+
+        // Add healthy check-ins for team 1
+        var healthyCheckIns = new[]
+        {
+            new CheckIn { TeamId = 1, MoodRating = 8, StressLevel = 3, SubmittedAt = DateTime.UtcNow.AddDays(-1) },
+            new CheckIn { TeamId = 1, MoodRating = 7, StressLevel = 4, SubmittedAt = DateTime.UtcNow.AddDays(-2) }
+        };
+
+        // Add stressed check-ins for team 2 (should trigger alert)
+        var stressedCheckIns = new[]
+        {
+            new CheckIn { TeamId = 2, MoodRating = 2, StressLevel = 9, SubmittedAt = DateTime.UtcNow.AddDays(-1) },
+            new CheckIn { TeamId = 2, MoodRating = 1, StressLevel = 10, SubmittedAt = DateTime.UtcNow.AddDays(-2) }
+        };
+
+        await context.CheckIns.AddRangeAsync(healthyCheckIns.Concat(stressedCheckIns));
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await _teamService.GetBurnoutAlertsAsync();
+
+        // Assert
+        result.Should().HaveCount(1);
+        result.First().TeamId.Should().Be(2);
+        result.First().TeamName.Should().Be("Stressed Team");
+        result.First().AlertLevel.Should().Be("High");
+    }
+
     public void Dispose()
     {
-        _context.Dispose();
+        // Context disposal is handled by the factory
     }
 }
