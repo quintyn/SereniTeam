@@ -1,8 +1,12 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using SereniTeam.Server.Data;
 using SereniTeam.Server.Services;
 using SereniTeam.Server.Hubs;
 using SereniTeam.Client.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.SignalR;
+using SereniTeam.Shared.DTOs;
+using SereniTeam.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,26 +54,42 @@ if (connectionString.StartsWith("postgres://"))
     connectionString = ConvertPostgresUrl(connectionString);
 }
 
-builder.Services.AddDbContext<SereniTeamContext>(options =>
+// CRITICAL FIX: Use AddDbContextFactory instead of AddDbContext for Blazor Server
+// This prevents the "second operation started" concurrency errors
+builder.Services.AddDbContextFactory<SereniTeamContext>(options =>
 {
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        // Add retry logic for Azure
+        // Add retry logic for Azure/Supabase
         npgsqlOptions.EnableRetryOnFailure(
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(5),
             errorCodesToAdd: null);
     });
+
+    // Enable detailed logging in development
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.LogTo(Console.WriteLine, LogLevel.Information);
+    }
 });
 
-// Register application services (business logic)
-builder.Services.AddScoped<ICheckInService, CheckInService>();
-builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, ServerSideTeamApiService>(provider =>
+{
+    var contextFactory = provider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
+    var logger = provider.GetRequiredService<ILogger<ServerSideTeamApiService>>();
+    var hubContext = provider.GetRequiredService<IHubContext<TeamUpdatesHub>>();
+    return new ServerSideTeamApiService(contextFactory, logger, hubContext);
+});
 
-// Register the Blazor Server API services (these replace HTTP calls)
-// These implement the same interfaces as the WebAssembly versions but call services directly
-builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, SereniTeam.Server.Services.TeamApiService>();
-builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService, SereniTeam.Server.Services.CheckInApiService>();
+builder.Services.AddScoped<SereniTeam.Client.Services.ICheckInApiService, ServerSideCheckInApiService>(provider =>
+{
+    var contextFactory = provider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
+    var logger = provider.GetRequiredService<ILogger<ServerSideCheckInApiService>>();
+    var hubContext = provider.GetRequiredService<IHubContext<TeamUpdatesHub>>();
+    return new ServerSideCheckInApiService(contextFactory, logger, hubContext);
+});
 
 // Add SignalR for real-time updates
 builder.Services.AddSignalR(options =>
@@ -93,7 +113,6 @@ var app = builder.Build();
 
 Console.WriteLine("=== Configuring Middleware Pipeline (Blazor Server) ===");
 
-// Configure the HTTP request pipeline - SIMPLER for Blazor Server
 if (app.Environment.IsDevelopment())
 {
     Console.WriteLine("Development mode");
@@ -103,8 +122,25 @@ else
 {
     Console.WriteLine("Production mode - using exception handler");
     app.UseExceptionHandler("/Error");
-    // Don't use HSTS in Azure App Service (proxy handles SSL)
 }
+
+// Add detailed error endpoint to see what's failing
+app.Map("/Error", async (HttpContext context) =>
+{
+    var exceptionFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+    if (exceptionFeature?.Error != null)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(exceptionFeature.Error, "Unhandled exception on path: {Path}", exceptionFeature.Path);
+
+        return Results.Problem(
+            title: "An error occurred",
+            detail: app.Environment.IsDevelopment() ? exceptionFeature.Error.ToString() : "Internal server error",
+            statusCode: 500
+        );
+    }
+    return Results.Problem("Unknown error occurred");
+});
 
 // Always enable Swagger for demo purposes
 app.UseSwagger();
@@ -161,11 +197,12 @@ app.MapGet("/debug/files", () =>
     }
 });
 
-// Database health check (with error handling)
-app.MapGet("/health/db", async (SereniTeamContext context) =>
+// Database health check (with error handling) - FIXED to use DbContextFactory
+app.MapGet("/health/db", async (IDbContextFactory<SereniTeamContext> contextFactory) =>
 {
     try
     {
+        using var context = contextFactory.CreateDbContext();
         var canConnect = await context.Database.CanConnectAsync();
         if (canConnect)
         {
@@ -200,7 +237,7 @@ app.MapFallbackToPage("/_Host"); // Host page for Blazor Server
 
 Console.WriteLine("=== Endpoint mapping complete ===");
 
-// Database setup with improved error handling
+// Database setup with improved error handling - FIXED to use DbContextFactory
 await SetupDatabase(app);
 
 Console.WriteLine("=== SereniTeam Ready (Blazor Server) ===");
@@ -214,17 +251,19 @@ Console.WriteLine("- File Debug: /debug/files");
 await app.RunAsync();
 
 /// <summary>
-/// Database setup with comprehensive error handling
+/// Database setup with comprehensive error handling - FIXED to use DbContextFactory
 /// </summary>
 static async Task SetupDatabase(WebApplication app)
 {
     try
     {
         using var scope = app.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<SereniTeamContext>();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
         logger.LogInformation("Starting database setup...");
+
+        using var context = contextFactory.CreateDbContext();
 
         // Test connection first
         logger.LogInformation("Testing database connection...");
@@ -287,7 +326,7 @@ static string ConvertPostgresUrl(string databaseUrl)
 }
 
 /// <summary>
-/// Seeds demo data for the application
+/// Seeds demo data for the application - FIXED to work with passed context
 /// </summary>
 static async Task SeedDemoData(SereniTeamContext context, ILogger logger)
 {
@@ -365,5 +404,342 @@ static async Task SeedDemoData(SereniTeamContext context, ILogger logger)
     {
         logger.LogError(ex, "Failed to seed demo data: {Message}", ex.Message);
         // Don't throw - continue without demo data
+    }
+}
+
+// UPDATED: Server-side API service implementations for Blazor Server with DbContextFactory
+/// <summary>
+/// Server-side implementation of ITeamApiService for Blazor Server mode
+/// This replaces HTTP calls with direct service calls - UPDATED for DbContextFactory
+/// </summary>
+public class ServerSideTeamApiService : SereniTeam.Client.Services.ITeamApiService
+{
+    private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
+    private readonly ILogger<ServerSideTeamApiService> _logger;
+    private readonly IHubContext<TeamUpdatesHub> _hubContext;
+
+    public ServerSideTeamApiService(
+        IDbContextFactory<SereniTeamContext> contextFactory,
+        ILogger<ServerSideTeamApiService> logger,
+        IHubContext<TeamUpdatesHub> hubContext)
+    {
+        _contextFactory = contextFactory;
+        _logger = logger;
+        _hubContext = hubContext;
+    }
+
+    public async Task<List<SereniTeam.Shared.DTOs.TeamDto>> GetAllTeamsAsync()
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting all teams");
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var teams = await context.Teams
+                .Where(t => t.IsActive)
+                .Select(t => new SereniTeam.Shared.DTOs.TeamDto
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Description = t.Description,
+                    CreatedAt = t.CreatedAt,
+                    IsActive = t.IsActive
+                })
+                .ToListAsync();
+
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved {Count} teams", teams.Count);
+            return teams;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting all teams");
+            throw;
+        }
+    }
+
+    public async Task<SereniTeam.Shared.DTOs.TeamDto?> GetTeamByIdAsync(int id)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting team {TeamId}", id);
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var team = await context.Teams
+                .Where(t => t.Id == id && t.IsActive)
+                .Select(t => new SereniTeam.Shared.DTOs.TeamDto
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Description = t.Description,
+                    CreatedAt = t.CreatedAt,
+                    IsActive = t.IsActive
+                })
+                .FirstOrDefaultAsync();
+
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved team {TeamId}: {Found}", id, team != null);
+            return team;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting team {TeamId}", id);
+            throw;
+        }
+    }
+
+    public async Task<SereniTeam.Shared.DTOs.TeamSummaryDto?> GetTeamSummaryAsync(int id, int daysBack = 30)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting team summary for {TeamId}, {DaysBack} days", id, daysBack);
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var team = await context.Teams
+                .FirstOrDefaultAsync(t => t.Id == id && t.IsActive);
+
+            if (team == null) return null;
+
+            var cutoffDate = DateTime.UtcNow.AddDays(-daysBack);
+            var checkIns = await context.CheckIns
+                .Where(c => c.TeamId == id && c.SubmittedAt >= cutoffDate)
+                .ToListAsync();
+
+            // Calculate daily trends
+            var dailyTrends = checkIns
+                .GroupBy(c => c.SubmittedAt.Date)
+                .Select(g => new DailyTrendDto
+                {
+                    Date = g.Key,
+                    AverageMood = g.Average(c => c.MoodRating),
+                    AverageStress = g.Average(c => c.StressLevel),
+                    CheckInCount = g.Count()
+                })
+                .OrderByDescending(t => t.Date)
+                .Take(30)
+                .ToList();
+
+            var summary = new SereniTeam.Shared.DTOs.TeamSummaryDto
+            {
+                TeamId = team.Id,
+                TeamName = team.Name,
+                Description = team.Description,
+                AverageMood = checkIns.Any() ? checkIns.Average(c => c.MoodRating) : 0,
+                AverageStress = checkIns.Any() ? checkIns.Average(c => c.StressLevel) : 0,
+                TotalCheckIns = checkIns.Count,
+                LastCheckInDate = checkIns.Any() ? checkIns.Max(c => c.SubmittedAt) : null,
+                IsBurnoutRisk = CalculateBurnoutRisk(checkIns),
+                RecentTrends = dailyTrends
+            };
+
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved team summary for {TeamId}: {Found}", id, summary != null);
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting team summary for {TeamId}", id);
+            throw;
+        }
+    }
+
+    public async Task<int> CreateTeamAsync(SereniTeam.Shared.DTOs.CreateTeamDto teamDto)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Creating team {TeamName}", teamDto.Name);
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var team = new SereniTeam.Shared.Models.Team
+            {
+                Name = teamDto.Name,
+                Description = teamDto.Description,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            context.Teams.Add(team);
+            await context.SaveChangesAsync();
+
+            _logger.LogDebug("ServerSideTeamApiService: Created team {TeamName} with ID {TeamId}", teamDto.Name, team.Id);
+            return team.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error creating team {TeamName}", teamDto.Name);
+            throw;
+        }
+    }
+
+    public async Task<List<SereniTeam.Shared.DTOs.BurnoutAlertDto>> GetBurnoutAlertsAsync()
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideTeamApiService: Getting burnout alerts");
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var alerts = new List<SereniTeam.Shared.DTOs.BurnoutAlertDto>();
+            var cutoffDate = DateTime.UtcNow.AddDays(-7); // Check last 7 days
+
+            var teams = await context.Teams
+                .Where(t => t.IsActive)
+                .ToListAsync();
+
+            foreach (var team in teams)
+            {
+                var recentCheckIns = await context.CheckIns
+                    .Where(c => c.TeamId == team.Id && c.SubmittedAt >= cutoffDate)
+                    .ToListAsync();
+
+                if (recentCheckIns.Any())
+                {
+                    var avgMood = recentCheckIns.Average(c => c.MoodRating);
+                    var avgStress = recentCheckIns.Average(c => c.StressLevel);
+
+                    // Simple burnout detection logic
+                    if (avgMood <= 3.0 || avgStress >= 8.0)
+                    {
+                        var severity = (avgMood <= 2.0 || avgStress >= 9.0) ? "High" : "Medium";
+
+                        alerts.Add(new SereniTeam.Shared.DTOs.BurnoutAlertDto
+                        {
+                            TeamId = team.Id,
+                            TeamName = team.Name,
+                            AlertLevel = severity,
+                            Message = $"Team showing signs of burnout - Avg Mood: {avgMood:F1}, Avg Stress: {avgStress:F1}",
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+
+            _logger.LogDebug("ServerSideTeamApiService: Retrieved {Count} burnout alerts", alerts.Count);
+            return alerts;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideTeamApiService: Error getting burnout alerts");
+            throw;
+        }
+    }
+
+    private bool CalculateBurnoutRisk(List<SereniTeam.Shared.Models.CheckIn> checkIns)
+    {
+        if (!checkIns.Any()) return false;
+
+        // Simple burnout risk calculation
+        var avgMood = checkIns.Average(c => c.MoodRating);
+        var avgStress = checkIns.Average(c => c.StressLevel);
+
+        // Risk if mood is low (≤3) or stress is high (≥8)
+        return avgMood <= 3.0 || avgStress >= 8.0;
+    }
+}
+
+/// <summary>
+/// Server-side implementation of ICheckInApiService for Blazor Server mode
+/// This replaces HTTP calls with direct service calls - UPDATED for DbContextFactory
+/// </summary>
+public class ServerSideCheckInApiService : ICheckInApiService
+{
+    private readonly IDbContextFactory<SereniTeamContext> _contextFactory;
+    private readonly ILogger<ServerSideCheckInApiService> _logger;
+    private readonly IHubContext<TeamUpdatesHub> _hubContext;
+
+    public ServerSideCheckInApiService(
+        IDbContextFactory<SereniTeamContext> contextFactory,
+        ILogger<ServerSideCheckInApiService> logger,
+        IHubContext<TeamUpdatesHub> hubContext)
+    {
+        _contextFactory = contextFactory;
+        _logger = logger;
+        _hubContext = hubContext;
+    }
+
+    public async Task<bool> SubmitCheckInAsync(SereniTeam.Shared.DTOs.CheckInSubmissionDto checkIn)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideCheckInApiService: Submitting check-in for team {TeamId}", checkIn.TeamId);
+
+            using var context = _contextFactory.CreateDbContext();
+
+            // Validate team exists
+            var teamExists = await context.Teams
+                .AnyAsync(t => t.Id == checkIn.TeamId && t.IsActive);
+
+            if (!teamExists)
+            {
+                _logger.LogWarning("Attempted to submit check-in for non-existent team {TeamId}", checkIn.TeamId);
+                return false;
+            }
+
+            var checkInEntity = new SereniTeam.Shared.Models.CheckIn
+            {
+                TeamId = checkIn.TeamId,
+                MoodRating = checkIn.MoodRating,
+                StressLevel = checkIn.StressLevel,
+                Notes = checkIn.Notes,
+                SubmittedAt = DateTime.UtcNow
+            };
+
+            context.CheckIns.Add(checkInEntity);
+            await context.SaveChangesAsync();
+
+            // Trigger SignalR notification
+            await _hubContext.Clients.Group($"Team_{checkIn.TeamId}")
+                .SendAsync("NewCheckInReceived", new CheckInDto
+                {
+                    Id = checkInEntity.Id,
+                    TeamId = checkInEntity.TeamId,
+                    MoodRating = checkInEntity.MoodRating,
+                    StressLevel = checkInEntity.StressLevel,
+                    Notes = checkInEntity.Notes,
+                    SubmittedAt = checkInEntity.SubmittedAt
+                });
+
+            _logger.LogDebug("ServerSideCheckInApiService: Check-in submission successful for team {TeamId}", checkIn.TeamId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideCheckInApiService: Error submitting check-in for team {TeamId}", checkIn.TeamId);
+            return false;
+        }
+    }
+
+    public async Task<List<CheckInDto>> GetTeamCheckInsAsync(int teamId, int daysBack = 30)
+    {
+        try
+        {
+            _logger.LogDebug("ServerSideCheckInApiService: Getting check-ins for team {TeamId}", teamId);
+
+            using var context = _contextFactory.CreateDbContext();
+
+            var cutoffDate = DateTime.UtcNow.AddDays(-daysBack);
+            var checkIns = await context.CheckIns
+                .Where(c => c.TeamId == teamId && c.SubmittedAt >= cutoffDate)
+                .OrderByDescending(c => c.SubmittedAt)
+                .Select(c => new CheckInDto
+                {
+                    Id = c.Id,
+                    TeamId = c.TeamId,
+                    MoodRating = c.MoodRating,
+                    StressLevel = c.StressLevel,
+                    Notes = c.Notes,
+                    SubmittedAt = c.SubmittedAt
+                })
+                .ToListAsync();
+
+            _logger.LogDebug("ServerSideCheckInApiService: Retrieved {Count} check-ins for team {TeamId}", checkIns.Count, teamId);
+            return checkIns;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ServerSideCheckInApiService: Error getting check-ins for team {TeamId}", teamId);
+            throw;
+        }
     }
 }

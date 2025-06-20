@@ -86,16 +86,16 @@
                 <div class="alerts-grid">
                     @foreach (var alert in burnoutAlerts)
                     {
-                        <div class="alert-card @GetAlertSeverityClass(alert.Severity)">
+                        <div class="alert-card @GetAlertSeverityClass(alert.AlertLevel)">
                             <div class="alert-icon">
-                                <i class="fas @GetAlertIcon(alert.Severity)"></i>
+                                <i class="fas @GetAlertIcon(alert.AlertLevel)"></i>
                             </div>
                             <div class="alert-content">
                                 <h3>@alert.TeamName</h3>
-                                <p>@alert.AlertMessage</p>
+                                <p>@alert.Message</p>
                                 <div class="alert-meta">
-                                    <span class="alert-time">@GetRelativeTime(alert.AlertDate)</span>
-                                    <span class="alert-severity @alert.Severity.ToLower()">@alert.Severity Risk</span>
+                                    <span class="alert-time">@GetRelativeTime(alert.CreatedAt)</span>
+                                    <span class="alert-severity @alert.AlertLevel.ToLower()">@alert.AlertLevel Risk</span>
                                 </div>
                             </div>
                             <div class="alert-actions">

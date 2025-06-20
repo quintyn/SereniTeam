@@ -1,5 +1,5 @@
 @page "/dashboard"
-@layout MainLayout
+@layout EmptyLayout
 @using SereniTeam.Shared.DTOs
 @using SereniTeam.Client.Services
 @inject ITeamApiService TeamService
@@ -1354,11 +1354,12 @@ else if (!teams.Any())
     private int selectedTeamId = 0;
     private int selectedDays = 30;
     private bool isRefreshing = false;
-    
+
     // Add these new error handling variables
     private bool hasError = false;
     private string errorMessage = string.Empty;
     private bool isLoading = true;
+    private bool isRendered = false; // Track if component has rendered
 
     protected override async Task OnInitializedAsync()
     {
@@ -1370,7 +1371,8 @@ else if (!teams.Any())
         {
             hasError = true;
             errorMessage = $"Failed to load dashboard: {ex.Message}";
-            await JSRuntime.InvokeVoidAsync("console.error", "Dashboard error:", ex.ToString());
+            // Remove JS call - use server-side logging only
+            Console.WriteLine($"Dashboard error: {ex}");
         }
         finally
         {
@@ -1379,14 +1381,41 @@ else if (!teams.Any())
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isRendered = true;
+            // Any JS calls that were needed on initial load can go here
+            await SafeJSCall("console.log", "Dashboard component rendered successfully");
+        }
+    }
+
+    // Helper method to safely make JS calls only after rendering
+    private async Task SafeJSCall(string method, params object[] args)
+    {
+        try
+        {
+            if (isRendered)
+            {
+                await JSRuntime.InvokeVoidAsync(method, args);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log to server console instead of JS console during prerendering
+            Console.WriteLine($"JS Call failed: {method} - {ex.Message}");
+        }
+    }
+
     private async Task LoadTeamsAndSummaries()
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("console.log", "Loading teams...");
+            // Remove all JS calls from this method
             teams = await TeamService.GetAllTeamsAsync();
-            await JSRuntime.InvokeVoidAsync("console.log", $"Loaded {teams.Count} teams");
-            
+            Console.WriteLine($"Loaded {teams.Count} teams"); // Server-side logging
+
             foreach (var team in teams)
             {
                 try
@@ -1395,15 +1424,15 @@ else if (!teams.Any())
                     if (summary != null)
                     {
                         teamSummaries[team.Id] = summary;
-                        await JSRuntime.InvokeVoidAsync("console.log", $"Loaded summary for team {team.Name}");
+                        Console.WriteLine($"Loaded summary for team {team.Name}"); // Server-side logging
                     }
                 }
                 catch (Exception ex)
                 {
-                    await JSRuntime.InvokeVoidAsync("console.warn", $"Failed to load summary for team {team.Name}: {ex.Message}");
+                    Console.WriteLine($"Failed to load summary for team {team.Name}: {ex.Message}");
                 }
             }
-            
+
             if (teams.Any() && selectedTeamId == 0)
             {
                 selectedTeamId = teams.First().Id;
@@ -1412,7 +1441,7 @@ else if (!teams.Any())
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Error in LoadTeamsAndSummaries:", ex.ToString());
+            Console.WriteLine($"Error in LoadTeamsAndSummaries: {ex}");
             throw; // Re-throw so the parent catch block handles it
         }
     }
@@ -1423,25 +1452,28 @@ else if (!teams.Any())
         {
             selectedTeamId = teamId;
             await LoadTeamData();
+
+            // Safe JS call after user interaction (component is definitely rendered)
+            await SafeJSCall("console.log", $"Selected team: {teamId}");
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Error selecting team:", ex.ToString());
+            await SafeJSCall("console.error", "Error selecting team:", ex.ToString());
         }
     }
 
     private async Task LoadTeamData()
     {
         if (selectedTeamId == 0) return;
-        
+
         try
         {
             teamSummary = await TeamService.GetTeamSummaryAsync(selectedTeamId, selectedDays);
-            await JSRuntime.InvokeVoidAsync("console.log", "Team data loaded successfully");
+            Console.WriteLine("Team data loaded successfully"); // Server-side logging
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Error loading team data:", ex.ToString());
+            await SafeJSCall("console.error", "Error loading team data:", ex.ToString());
             teamSummary = null;
         }
     }
@@ -1452,16 +1484,18 @@ else if (!teams.Any())
         {
             isRefreshing = true;
             StateHasChanged();
-            
+
             await LoadTeamsAndSummaries();
             if (selectedTeamId > 0)
             {
                 await LoadTeamData();
             }
+
+            await SafeJSCall("console.log", "Data refreshed successfully");
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Error refreshing data:", ex.ToString());
+            await SafeJSCall("console.error", "Error refreshing data:", ex.ToString());
             hasError = true;
             errorMessage = $"Failed to refresh data: {ex.Message}";
         }
@@ -1484,7 +1518,7 @@ else if (!teams.Any())
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Error changing time range:", ex.ToString());
+            await SafeJSCall("console.error", "Error changing time range:", ex.ToString());
         }
     }
 
@@ -1499,7 +1533,7 @@ else if (!teams.Any())
     private string CalculateWellnessScore(TeamSummaryDto summary)
     {
         if (summary.TotalCheckIns == 0) return "N/A";
-        
+
         var rawScore = summary.AverageMood - (summary.AverageStress * 0.5);
         var normalizedScore = Math.Max(0, Math.Min(10, rawScore));
         return normalizedScore.ToString("F1");
@@ -1508,13 +1542,13 @@ else if (!teams.Any())
     private string GetWellnessRating(string score)
     {
         if (score == "N/A") return "No Data";
-        
+
         if (double.TryParse(score, out double value))
         {
             return value switch
             {
                 >= 8.0 => "Excellent",
-                >= 6.5 => "Good", 
+                >= 6.5 => "Good",
                 >= 5.0 => "Fair",
                 >= 3.5 => "Poor",
                 _ => "Critical"
@@ -1526,9 +1560,9 @@ else if (!teams.Any())
     private int GetMoodDistribution(string category)
     {
         if (teamSummary == null || teamSummary.TotalCheckIns == 0) return 0;
-        
+
         var avgMood = teamSummary.AverageMood;
-        
+
         return category switch
         {
             "excellent" => avgMood >= 8 ? 35 : avgMood >= 6 ? 25 : 15,
@@ -1549,67 +1583,67 @@ else if (!teams.Any())
     private string GetRelativeTime(DateTime date)
     {
         var timeSpan = DateTime.UtcNow - date;
-        
+
         if (timeSpan.TotalDays >= 1)
             return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
         if (timeSpan.TotalHours >= 1)
             return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
-        
+
         return "Less than an hour ago";
     }
 
     private List<RecommendedAction> GetRecommendedActions()
     {
         var actions = new List<RecommendedAction>();
-        
+
         if (teamSummary == null) return actions;
 
         if (teamSummary.IsBurnoutRisk)
         {
             actions.Add(new RecommendedAction
-            {
-                Title = "Address Burnout Risk",
-                Description = "Team is showing signs of burnout. Consider scheduling one-on-ones or reducing workload.",
-                Icon = "fa-exclamation-triangle",
-                Priority = "high",
-                ButtonText = "Take Action"
-            });
+                {
+                    Title = "Address Burnout Risk",
+                    Description = "Team is showing signs of burnout. Consider scheduling one-on-ones or reducing workload.",
+                    Icon = "fa-exclamation-triangle",
+                    Priority = "high",
+                    ButtonText = "Take Action"
+                });
         }
 
         if (teamSummary.TotalCheckIns == 0)
         {
             actions.Add(new RecommendedAction
-            {
-                Title = "Encourage First Check-ins",
-                Description = "No team members have submitted check-ins yet. Send a reminder or demo the process.",
-                Icon = "fa-bullhorn",
-                Priority = "medium",
-                ButtonText = "Send Reminder"
-            });
+                {
+                    Title = "Encourage First Check-ins",
+                    Description = "No team members have submitted check-ins yet. Send a reminder or demo the process.",
+                    Icon = "fa-bullhorn",
+                    Priority = "medium",
+                    ButtonText = "Send Reminder"
+                });
         }
 
         if (teamSummary.AverageStress > 6)
         {
             actions.Add(new RecommendedAction
-            {
-                Title = "High Stress Levels",
-                Description = "Team stress levels are elevated. Consider stress management resources or workload adjustment.",
-                Icon = "fa-heart-pulse",
-                Priority = "medium",
-                ButtonText = "View Resources"
-            });
+                {
+                    Title = "High Stress Levels",
+                    Description = "Team stress levels are elevated. Consider stress management resources or workload adjustment.",
+                    Icon = "fa-heart-pulse",
+                    Priority = "medium",
+                    ButtonText = "View Resources"
+                });
         }
 
         if (teamSummary.AverageMood >= 7 && teamSummary.AverageStress <= 4)
         {
             actions.Add(new RecommendedAction
-            {
-                Title = "Team is Thriving",
-                Description = "Great wellness metrics! Consider sharing what's working with other teams.",
-                Icon = "fa-trophy",
-                Priority = "low",
-                ButtonText = "Share Success"
-            });
+                {
+                    Title = "Team is Thriving",
+                    Description = "Great wellness metrics! Consider sharing what's working with other teams.",
+                    Icon = "fa-trophy",
+                    Priority = "low",
+                    ButtonText = "Share Success"
+                });
         }
 
         return actions;
@@ -1634,8 +1668,9 @@ else if (!teams.Any())
         public string Priority { get; set; } = "";
         public string ButtonText { get; set; } = "";
     }
+
     private async Task ReloadPage()
-{
-    await JSRuntime.InvokeVoidAsync("window.location.reload");
-}
+    {
+        await SafeJSCall("window.location.reload");
+    }
 }
