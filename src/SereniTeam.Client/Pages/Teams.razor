@@ -1513,8 +1513,16 @@
         if (!teamSummaries.Any())
             return "N/A";
 
-        var averageScore = teamSummaries.Values
+        // Get summaries that actually have check-ins
+        var summariesWithData = teamSummaries.Values
             .Where(s => s.TotalCheckIns > 0)
+            .ToList();
+
+        // If no teams have check-ins yet, return N/A
+        if (!summariesWithData.Any())
+            return "N/A";
+
+        var averageScore = summariesWithData
             .Average(s => CalculateWellnessScore(s));
 
         return averageScore.ToString("F0");
