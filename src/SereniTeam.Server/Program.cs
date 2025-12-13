@@ -238,7 +238,17 @@ app.MapFallbackToPage("/_Host"); // Host page for Blazor Server
 Console.WriteLine("=== Endpoint mapping complete ===");
 
 // Database setup with improved error handling - FIXED to use DbContextFactory
-await SetupDatabase(app);
+
+// Check if database setup should be skipped
+var skipDbSetup = app.Configuration.GetValue<bool>("SkipDatabaseSetup", false);
+if (skipDbSetup)
+{
+    Console.WriteLine("Database setup skipped (SkipDatabaseSetup=true)");
+}
+else
+{
+    await SetupDatabase(app);
+}
 
 Console.WriteLine("=== SereniTeam Ready (Blazor Server) ===");
 Console.WriteLine("Access points:");
