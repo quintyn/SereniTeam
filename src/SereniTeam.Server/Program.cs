@@ -1,10 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SereniTeam.Server.Data;
-using SereniTeam.Server.Services;
-using SereniTeam.Server.Hubs;
-using SereniTeam.Client.Services;
-using Microsoft.AspNetCore.Diagnostics;
+﻿using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using SereniTeam.Client.Services;
+using SereniTeam.Server.Data;
+using SereniTeam.Server.Hubs;
+using SereniTeam.Server.Services;
 using SereniTeam.Shared.DTOs;
 using SereniTeam.Shared.Models;
 
@@ -56,9 +57,35 @@ if (connectionString.StartsWith("postgres://"))
 
 // CRITICAL FIX: Use AddDbContextFactory instead of AddDbContext for Blazor Server
 // This prevents the "second operation started" concurrency errors
+
+// Force IPv4 to fix Azure App Service IPv6 connectivity issues with Supabase
+var modifiedConnectionString = connectionString;
+try
+{
+    // Extract host from connection string and resolve to IPv4
+    var host = connectionString.Split(';')
+        .FirstOrDefault(s => s.Trim().StartsWith("Host=", StringComparison.OrdinalIgnoreCase))
+        ?.Split('=')[1]?.Trim();
+
+    if (!string.IsNullOrEmpty(host) && !System.Net.IPAddress.TryParse(host, out _))
+    {
+        var addresses = System.Net.Dns.GetHostAddresses(host);
+        var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+        if (ipv4 != null)
+        {
+            modifiedConnectionString = connectionString.Replace($"Host={host}", $"Host={ipv4}");
+            Console.WriteLine($"Resolved {host} to IPv4: {ipv4}");
+        }
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"IPv4 resolution failed, using original: {ex.Message}");
+}
+
 builder.Services.AddDbContextFactory<SereniTeamContext>(options =>
 {
-    options.UseNpgsql(connectionString, npgsqlOptions =>
+    options.UseNpgsql(modifiedConnectionString, npgsqlOptions =>
     {
         // Add retry logic for Azure/Supabase
         npgsqlOptions.EnableRetryOnFailure(
