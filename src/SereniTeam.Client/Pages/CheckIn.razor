@@ -198,7 +198,7 @@
                                 @if (selectedStep < 4)
                                 {
                                     <button type="button" class="btn btn-primary-modern ml-auto" 
-                                            @onclick="NextStep" disabled="@(!CanProceedToNextStep())">
+                                            @onclick="NextStep">
                                         Next
                                         <i class="fas fa-arrow-right"></i>
                                     </button>
@@ -620,7 +620,9 @@
 
     private void SelectTeam(int teamId)
     {
+        Console.WriteLine($"=== SelectTeam called with teamId: {teamId} ===");
         checkInModel.TeamId = teamId;
+        Console.WriteLine($"=== checkInModel.TeamId is now: {checkInModel.TeamId} ===");
         StateHasChanged();
     }
 
@@ -638,9 +640,12 @@
 
     private void NextStep()
     {
+        Console.WriteLine($"=== NextStep called ===");
+        Console.WriteLine($"=== selectedStep: {selectedStep}, CanProceed: {CanProceedToNextStep()}, TeamId: {checkInModel.TeamId} ===");
         if (CanProceedToNextStep() && selectedStep < 4)
         {
             selectedStep++;
+            Console.WriteLine($"=== Moving to step {selectedStep} ===");
             StateHasChanged();
         }
     }

@@ -102,6 +102,9 @@ builder.Services.AddDbContextFactory<SereniTeamContext>(options =>
     }
 });
 
+builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<ICheckInService, CheckInService>();
+
 builder.Services.AddScoped<SereniTeam.Client.Services.ITeamApiService, ServerSideTeamApiService>(provider =>
 {
     var contextFactory = provider.GetRequiredService<IDbContextFactory<SereniTeamContext>>();
@@ -258,7 +261,7 @@ app.MapControllers();
 app.MapHub<TeamUpdatesHub>("/teamupdates");
 
 // Blazor Server endpoints (these replace the WebAssembly fallback)
-app.MapBlazorHub("/blazorhub"); // SignalR hub for Blazor Server
+app.MapBlazorHub(); // SignalR hub for Blazor Server
 app.MapRazorPages(); // For _Host.cshtml
 app.MapFallbackToPage("/_Host"); // Host page for Blazor Server
 
